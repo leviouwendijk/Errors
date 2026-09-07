@@ -53,38 +53,77 @@ public extension ErrorReport {
     func redacted(
         policy: ErrorRedactionPolicy = .publicsafe
     ) -> ErrorReport {
-        let fields = diagnostic.fields.map { field in
-            guard policy.allows(
-                field.sensitivity
-            ) else {
-                return ErrorDiagnosticField(
-                    name: field.name,
-                    value: .redacted,
-                    sensitivity: field.sensitivity
-                )
-            }
-
-            return field
-        }
-
-        return ErrorReport(
+        ErrorReport(
             presentation: presentation,
             diagnostic: ErrorDiagnostic(
                 typeName: diagnostic.typeName,
                 identity: diagnostic.identity,
                 domain: diagnostic.domain,
                 code: diagnostic.code,
-                fields: fields
+                fields:
+                    diagnostic.fields.map {
+                        $0.redacted(
+                            policy: policy
+                        )
+                    }
             ),
-            relations: relations.map {
-                .init(
-                    kind: $0.kind,
-                    report: $0.report.redacted(
+            contexts:
+                contexts.map {
+                    $0.redacted(
                         policy: policy
                     )
+                },
+            relations:
+                relations.map {
+                    .init(
+                        kind: $0.kind,
+                        report: $0.report.redacted(
+                            policy: policy
+                        )
+                    )
+                },
+            truncations: truncations
+        )
+    }
+}
+
+private extension ErrorDiagnosticField {
+    func redacted(
+        policy: ErrorRedactionPolicy
+    ) -> ErrorDiagnosticField {
+        guard policy.allows(
+            sensitivity
+        ) else {
+            return ErrorDiagnosticField(
+                key: key,
+                value: .redacted,
+                sensitivity: sensitivity
+            )
+        }
+
+        return self
+    }
+}
+
+private extension ErrorContext {
+    func redacted(
+        policy: ErrorRedactionPolicy
+    ) -> ErrorContext {
+        ErrorContext(
+            message:
+                policy.allows(
+                    messageSensitivity
                 )
-            },
-            isTruncated: isTruncated
+                ? message
+                : "<redacted>",
+            fields:
+                fields.map {
+                    $0.redacted(
+                        policy: policy
+                    )
+                },
+            messageSensitivity:
+                messageSensitivity
         )
     }
 }

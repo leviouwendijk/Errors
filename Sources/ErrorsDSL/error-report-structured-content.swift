@@ -8,30 +8,34 @@ public struct ErrorStructuredContentOptions:
 {
     public let includesDiagnostics: Bool
     public let includesRelations: Bool
-    public let includesSensitiveFields: Bool
+    public let redaction: ErrorRedactionPolicy
 
     public init(
         includesDiagnostics: Bool = true,
         includesRelations: Bool = true,
-        includesSensitiveFields: Bool = false
+        redaction: ErrorRedactionPolicy = .publicsafe
     ) {
         self.includesDiagnostics = includesDiagnostics
         self.includesRelations = includesRelations
-        self.includesSensitiveFields = includesSensitiveFields
+        self.redaction = redaction
     }
 
     public static let summary = Self(
         includesDiagnostics: false,
         includesRelations: false,
-        includesSensitiveFields: false
+        redaction: .publicsafe
     )
 
-    public static let diagnostic = Self()
+    public static let diagnostic = Self(
+        includesDiagnostics: true,
+        includesRelations: true,
+        redaction: .internaldiagnostic
+    )
 
     public static let complete = Self(
         includesDiagnostics: true,
         includesRelations: true,
-        includesSensitiveFields: true
+        redaction: .complete
     )
 }
 
@@ -70,6 +74,10 @@ public extension StructuredContent.Role {
 
     static let errorContext = Self(
         rawValue: "error.context"
+    )
+
+    static let errorTruncation = Self(
+        rawValue: "error.truncation"
     )
 }
 
@@ -144,6 +152,27 @@ public extension ErrorReport {
                                     .text($0),
                                 ])
                             }
+                    )
+                )
+            )
+        }
+
+        if !contexts.isEmpty {
+            content.append(
+                .group(
+                    role: .errorContext,
+                    title: [
+                        .text(
+                            "Context"
+                        ),
+                    ],
+                    content: .collection(
+                        contexts.map {
+                            contextContent(
+                                $0,
+                                options: options
+                            )
+                        }
                     )
                 )
             )
@@ -268,7 +297,7 @@ private extension ErrorReport {
             contentsOf:
                 diagnostic.fields.map {
                     diagnosticLine(
-                        name: $0.name,
+                        name: $0.key.rawValue,
                         value:
                             diagnosticValue(
                                 for: $0,
@@ -278,15 +307,25 @@ private extension ErrorReport {
                 }
         )
 
-        if isTruncated {
+        if !truncations.isEmpty {
             diagnostics.append(
-                .paragraph([
-                    .emphasis([
+                .group(
+                    role: .errorTruncation,
+                    title: [
                         .text(
-                            "Diagnostic capture truncated by policy."
+                            "Capture truncation"
                         ),
-                    ]),
-                ])
+                    ],
+                    content: .list(
+                        style: .unordered,
+                        items:
+                            truncations.map {
+                                truncationContent(
+                                    $0
+                                )
+                            }
+                    )
+                )
             )
         }
 
@@ -341,13 +380,71 @@ private extension ErrorReport {
         ])
     }
 
+    func contextContent(
+        _ context: ErrorContext,
+        options: ErrorStructuredContentOptions
+    ) -> StructuredContent {
+        var content: [StructuredContent] = [
+            .paragraph([
+                .text(
+                    options.redaction.allows(
+                        context.messageSensitivity
+                    )
+                    ? context.message
+                    : "<redacted>"
+                ),
+            ]),
+        ]
+
+        content.append(
+            contentsOf:
+                context.fields.map {
+                    diagnosticLine(
+                        name: $0.key.rawValue,
+                        value:
+                            diagnosticValue(
+                                for: $0,
+                                options: options
+                            )
+                    )
+                }
+        )
+
+        return .collection(
+            content
+        )
+    }
+
+    func truncationContent(
+        _ truncation: ErrorCaptureTruncation
+    ) -> StructuredContent {
+        var content: [StructuredContent.Inline] = [
+            .code(
+                truncation.reason.rawValue
+            ),
+        ]
+
+        if let limit = truncation.limit {
+            content.append(
+                .text(
+                    " · limit \(limit)"
+                )
+            )
+        }
+
+        return .paragraph(
+            content
+        )
+    }
+
     func diagnosticValue(
         for field: ErrorDiagnosticField,
         options: ErrorStructuredContentOptions
     ) -> String {
         guard
-            options.includesSensitiveFields
-            || field.sensitivity == .ordinary
+            options.redaction.allows(
+                field.sensitivity
+            )
         else {
             return "<redacted>"
         }
@@ -368,10 +465,6 @@ private extension ErrorRelation.Kind {
 
         if self == .related {
             return .errorRelated
-        }
-
-        if self == .context {
-            return .errorContext
         }
 
         return .init(

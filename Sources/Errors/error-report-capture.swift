@@ -37,11 +37,14 @@ enum ErrorReportCapture {
         _ error: any Error,
         policy: ErrorCapturePolicy
     ) -> ErrorReport {
-        capture(
+        let state = ErrorCaptureState()
+
+        return capture(
             error,
             policy: policy,
             depth: 0,
-            activeObjects: []
+            activeObjects: [],
+            state: state
         )
     }
 
@@ -49,40 +52,54 @@ enum ErrorReportCapture {
         _ error: any Error,
         policy: ErrorCapturePolicy,
         depth: Int,
-        activeObjects: Set<ObjectIdentifier>
+        activeObjects: Set<ObjectIdentifier>,
+        state: ErrorCaptureState
     ) -> ErrorReport {
+        state.reportCount += 1
+
+        var truncations: [ErrorCaptureTruncation] = []
+
         let nsError =
             error as NSError
 
-        let identity =
+        let objectIdentity =
             ObjectIdentifier(
                 nsError
             )
 
         let objectCycle =
             activeObjects.contains(
-                identity
+                objectIdentity
             )
 
         var nextActiveObjects =
             activeObjects
 
         nextActiveObjects.insert(
-            identity
+            objectIdentity
         )
 
         let presentation =
-            presentation(
-                for: error,
-                nsError: nsError
+            boundedPresentation(
+                presentation(
+                    for: error,
+                    nsError: nsError
+                ),
+                policy: policy,
+                truncations: &truncations
             )
 
         let fieldCapture =
             fields(
                 for: error,
                 nsError: nsError,
-                policy: policy
+                policy: policy,
+                state: state
             )
+
+        truncations.append(
+            contentsOf: fieldCapture.truncations
+        )
 
         let diagnostic =
             ErrorDiagnostic(
@@ -99,14 +116,32 @@ enum ErrorReportCapture {
                 fields: fieldCapture.fields
             )
 
-        guard
-            !objectCycle,
-            depth < policy.maximumDepth
-        else {
+        if objectCycle {
+            record(
+                .cycle,
+                in: &truncations
+            )
+
             return ErrorReport(
                 presentation: presentation,
                 diagnostic: diagnostic,
-                isTruncated: true
+                truncations: truncations
+            )
+        }
+
+        guard
+            depth < policy.maximumDepth
+        else {
+            record(
+                .maximumdepth,
+                limit: policy.maximumDepth,
+                in: &truncations
+            )
+
+            return ErrorReport(
+                presentation: presentation,
+                diagnostic: diagnostic,
+                truncations: truncations
             )
         }
 
@@ -117,26 +152,43 @@ enum ErrorReportCapture {
                 policy: policy
             )
 
-        let capturedRelations =
-            relationCapture.relations.map {
+        truncations.append(
+            contentsOf: relationCapture.truncations
+        )
+
+        var capturedRelations: [ErrorReport.Relation] = []
+
+        for relation in relationCapture.relations {
+            guard
+                state.reportCount < policy.maximumTotalReports
+            else {
+                record(
+                    .maximumtotalreports,
+                    limit: policy.maximumTotalReports,
+                    in: &truncations
+                )
+                break
+            }
+
+            capturedRelations.append(
                 ErrorReport.Relation(
-                    kind: $0.kind,
+                    kind: relation.kind,
                     report: capture(
-                        $0.error,
+                        relation.error,
                         policy: policy,
                         depth: depth + 1,
-                        activeObjects: nextActiveObjects
+                        activeObjects: nextActiveObjects,
+                        state: state
                     )
                 )
-            }
+            )
+        }
 
         return ErrorReport(
             presentation: presentation,
             diagnostic: diagnostic,
             relations: capturedRelations,
-            isTruncated:
-                fieldCapture.truncated
-                || relationCapture.truncated
+            truncations: truncations
         )
     }
 
@@ -211,78 +263,61 @@ enum ErrorReportCapture {
     private static func fields(
         for error: any Error,
         nsError: NSError,
-        policy: ErrorCapturePolicy
+        policy: ErrorCapturePolicy,
+        state: ErrorCaptureState
     ) -> (
         fields: [ErrorDiagnosticField],
-        truncated: Bool
+        truncations: [ErrorCaptureTruncation]
     ) {
         var fields: [ErrorDiagnosticField] = []
-        var names: Set<String> = []
-        var truncated = false
+        var keys: Set<ErrorDiagnosticKey> = []
+        var truncations: [ErrorCaptureTruncation] = []
 
         if let provided =
             error as? any ErrorDiagnosticFieldsProviding
         {
             for field in provided.errorDiagnosticFields {
-                guard
-                    fields.count < policy.maximumFieldsPerError
-                else {
-                    truncated = true
+                guard appendField(
+                    field,
+                    to: &fields,
+                    keys: &keys,
+                    policy: policy,
+                    state: state,
+                    truncations: &truncations
+                ) else {
                     break
                 }
-
-                guard
-                    names.insert(
-                        field.name
-                    ).inserted
-                else {
-                    continue
-                }
-
-                fields.append(
-                    field
-                )
             }
         }
 
-        for field in foundationFields(
-            for: error
-        ) {
-            guard
-                fields.count < policy.maximumFieldsPerError
-            else {
-                truncated = true
-                break
+        if
+            fields.count < policy.maximumFieldsPerError,
+            state.fieldCount < policy.maximumTotalFields
+        {
+            for field in foundationFields(
+                for: error
+            ) {
+                guard appendField(
+                    field,
+                    to: &fields,
+                    keys: &keys,
+                    policy: policy,
+                    state: state,
+                    truncations: &truncations
+                ) else {
+                    break
+                }
             }
-
-            guard
-                names.insert(
-                    field.name
-                ).inserted
-            else {
-                continue
-            }
-
-            fields.append(
-                field
-            )
         }
 
         guard
             fields.count < policy.maximumFieldsPerError,
+            state.fieldCount < policy.maximumTotalFields,
             policy.userInfo != .none
         else {
-            if
-                policy.userInfo != .none,
-                !nsError.userInfo.isEmpty,
-                fields.count >= policy.maximumFieldsPerError
-            {
-                truncated = true
-            }
-
             return (
                 fields,
-                truncated
+                truncations
             )
         }
 
@@ -297,14 +332,14 @@ enum ErrorReportCapture {
                 }
 
         for (rawKey, value) in userInfo {
-            let key =
+            let name =
                 String(
                     describing: rawKey
                 )
 
             guard
-                key != NSUnderlyingErrorKey,
-                key != "NSMultipleUnderlyingErrorsKey"
+                name != NSUnderlyingErrorKey,
+                name != "NSMultipleUnderlyingErrorsKey"
             else {
                 continue
             }
@@ -312,47 +347,59 @@ enum ErrorReportCapture {
             guard
                 policy.userInfo == .all
                     || standardUserInfoKeys.contains(
-                        key
+                        name
                     )
             else {
                 continue
             }
 
+            let key =
+                ErrorDiagnosticKey(
+                    rawValue: name
+                )
+
             guard
-                names.insert(
-                    key
-                ).inserted
+                !keys.contains(key)
             else {
                 continue
             }
 
-            guard
-                fields.count < policy.maximumFieldsPerError
-            else {
-                truncated = true
-                break
-            }
+            var valueTruncations: [ErrorCaptureTruncation] = []
 
-            fields.append(
+            let diagnosticValue =
+                diagnosticValue(
+                    from: value,
+                    depth: 0,
+                    policy: policy,
+                    truncations: &valueTruncations
+                )
+
+            truncations.append(
+                contentsOf: valueTruncations
+            )
+
+            guard appendField(
                 ErrorDiagnosticField(
-                    name: key,
-                    value: diagnosticValue(
-                        from: value,
-                        depth: 0,
-                        maximumDepth:
-                            policy.maximumDiagnosticValueDepth
-                    ),
+                    key: key,
+                    value: diagnosticValue,
                     sensitivity:
                         sensitivity(
-                            for: key
+                            for: name
                         )
-                )
-            )
+                ),
+                to: &fields,
+                keys: &keys,
+                policy: policy,
+                state: state,
+                truncations: &truncations
+            ) else {
+                break
+            }
         }
 
         return (
             fields,
-            truncated
+            truncations
         )
     }
 
@@ -364,7 +411,7 @@ enum ErrorReportCapture {
         if let urlError = error as? URLError {
             fields.append(
                 .init(
-                    name: "urlerror.code",
+                    key: "urlerror.code",
                     value: urlError.code.rawValue
                 )
             )
@@ -372,7 +419,7 @@ enum ErrorReportCapture {
             if let url = urlError.failingURL {
                 fields.append(
                     .init(
-                        name: "urlerror.url",
+                        key: "urlerror.url",
                         value: url.absoluteString,
                         sensitivity: .potentiallySensitive
                     )
@@ -383,7 +430,7 @@ enum ErrorReportCapture {
         if let cocoaError = error as? CocoaError {
             fields.append(
                 .init(
-                    name: "cocoa.code",
+                    key: "cocoa.code",
                     value: cocoaError.code.rawValue
                 )
             )
@@ -392,7 +439,7 @@ enum ErrorReportCapture {
         if let posixError = error as? POSIXError {
             fields.append(
                 .init(
-                    name: "posix.code",
+                    key: "posix.code",
                     value: Int(
                         posixError.code.rawValue
                     )
@@ -451,7 +498,7 @@ enum ErrorReportCapture {
             @unknown default:
                 fields.append(
                     .init(
-                        name: "decoding.kind",
+                        key: "decoding.kind",
                         value: "unknown"
                     )
                 )
@@ -469,11 +516,11 @@ enum ErrorReportCapture {
     ) -> [ErrorDiagnosticField] {
         var fields: [ErrorDiagnosticField] = [
             .init(
-                name: "decoding.kind",
+                key: "decoding.kind",
                 value: kind
             ),
             .init(
-                name: "decoding.codingpath",
+                key: "decoding.codingpath",
                 value: .array(
                     context.codingPath.map {
                         .string(
@@ -483,7 +530,7 @@ enum ErrorReportCapture {
                 )
             ),
             .init(
-                name: "decoding.debugdescription",
+                key: "decoding.debugdescription",
                 value: context.debugDescription
             ),
         ]
@@ -491,7 +538,7 @@ enum ErrorReportCapture {
         if let expectedType {
             fields.append(
                 .init(
-                    name: "decoding.expectedtype",
+                    key: "decoding.expectedtype",
                     value: String(
                         reflecting: expectedType
                     )
@@ -502,7 +549,7 @@ enum ErrorReportCapture {
         if let key {
             fields.append(
                 .init(
-                    name: "decoding.key",
+                    key: "decoding.key",
                     value: key
                 )
             )
@@ -517,24 +564,34 @@ enum ErrorReportCapture {
         policy: ErrorCapturePolicy
     ) -> (
         relations: [ErrorRelation],
-        truncated: Bool
+        truncations: [ErrorCaptureTruncation]
     ) {
         var relations: [ErrorRelation] = []
-        var truncated = false
+        var truncations: [ErrorCaptureTruncation] = []
 
         if let provided =
             error as? any ErrorRelationsProviding
         {
+            let providedRelations =
+                provided.errorRelations
+
             relations =
                 Array(
-                    provided.errorRelations.prefix(
+                    providedRelations.prefix(
                         policy.maximumRelationsPerError
                     )
                 )
 
-            truncated =
-                provided.errorRelations.count
-                > policy.maximumRelationsPerError
+            if
+                providedRelations.count
+                    > policy.maximumRelationsPerError
+            {
+                record(
+                    .maximumrelations,
+                    limit: policy.maximumRelationsPerError,
+                    in: &truncations
+                )
+            }
         }
 
         let alreadyHasUnderlying =
@@ -549,8 +606,7 @@ enum ErrorReportCapture {
                     as? any Error
         {
             if
-                relations.count
-                    < policy.maximumRelationsPerError
+                relations.count < policy.maximumRelationsPerError
             {
                 relations.append(
                     .underlying(
@@ -558,7 +614,11 @@ enum ErrorReportCapture {
                     )
                 )
             } else {
-                truncated = true
+                record(
+                    .maximumrelations,
+                    limit: policy.maximumRelationsPerError,
+                    in: &truncations
+                )
             }
         }
 
@@ -574,10 +634,13 @@ enum ErrorReportCapture {
                 }
 
                 guard
-                    relations.count
-                        < policy.maximumRelationsPerError
+                    relations.count < policy.maximumRelationsPerError
                 else {
-                    truncated = true
+                    record(
+                        .maximumrelations,
+                        limit: policy.maximumRelationsPerError,
+                        in: &truncations
+                    )
                     break
                 }
 
@@ -591,21 +654,32 @@ enum ErrorReportCapture {
 
         return (
             relations,
-            truncated
+            truncations
         )
     }
 
     private static func diagnosticValue(
         from value: Any,
         depth: Int,
-        maximumDepth: Int
+        policy: ErrorCapturePolicy,
+        truncations: inout [ErrorCaptureTruncation]
     ) -> ErrorDiagnosticValue {
         guard
-            depth < maximumDepth
+            depth < policy.maximumDiagnosticValueDepth
         else {
+            record(
+                .maximumdiagnosticvaluedepth,
+                limit: policy.maximumDiagnosticValueDepth,
+                in: &truncations
+            )
+
             return .string(
-                String(
-                    reflecting: value
+                boundedString(
+                    String(
+                        reflecting: value
+                    ),
+                    policy: policy,
+                    truncations: &truncations
                 )
             )
         }
@@ -613,143 +687,429 @@ enum ErrorReportCapture {
         switch value {
         case let value as String:
             return .string(
-                value
+                boundedString(
+                    value,
+                    policy: policy,
+                    truncations: &truncations
+                )
             )
 
         case let value as Bool:
-            return .boolean(
-                value
-            )
+            return .boolean(value)
 
         case let value as Int:
-            return .integer(
-                value
-            )
+            return .integer(value)
 
         case let value as Int8:
-            return .integer(
-                Int(value)
-            )
+            return .integer(Int(value))
 
         case let value as Int16:
-            return .integer(
-                Int(value)
-            )
+            return .integer(Int(value))
 
         case let value as Int32:
-            return .integer(
-                Int(value)
-            )
+            return .integer(Int(value))
 
         case let value as Int64:
-            if let exact = Int(
-                exactly: value
-            ) {
-                return .integer(
-                    exact
-                )
+            if let exact = Int(exactly: value) {
+                return .integer(exact)
             }
 
             return .string(
-                String(value)
+                boundedString(
+                    String(value),
+                    policy: policy,
+                    truncations: &truncations
+                )
             )
 
         case let value as UInt:
-            if let exact = Int(
-                exactly: value
-            ) {
-                return .integer(
-                    exact
-                )
+            if let exact = Int(exactly: value) {
+                return .integer(exact)
             }
 
             return .string(
-                String(value)
+                boundedString(
+                    String(value),
+                    policy: policy,
+                    truncations: &truncations
+                )
             )
 
         case let value as UInt8:
-            return .integer(
-                Int(value)
-            )
+            return .integer(Int(value))
 
         case let value as UInt16:
-            return .integer(
-                Int(value)
-            )
+            return .integer(Int(value))
 
         case let value as UInt32:
-            if let exact = Int(
-                exactly: value
-            ) {
-                return .integer(
-                    exact
-                )
+            if let exact = Int(exactly: value) {
+                return .integer(exact)
             }
 
             return .string(
-                String(value)
+                boundedString(
+                    String(value),
+                    policy: policy,
+                    truncations: &truncations
+                )
             )
 
         case let value as UInt64:
-            if let exact = Int(
-                exactly: value
-            ) {
-                return .integer(
-                    exact
-                )
+            if let exact = Int(exactly: value) {
+                return .integer(exact)
             }
 
             return .string(
-                String(value)
+                boundedString(
+                    String(value),
+                    policy: policy,
+                    truncations: &truncations
+                )
             )
 
         case let value as Double:
-            return .double(
-                value
-            )
+            return .double(value)
 
         case let value as Float:
-            return .double(
-                Double(value)
-            )
+            return .double(Double(value))
 
         case let value as URL:
             return .string(
-                value.absoluteString
+                boundedString(
+                    value.absoluteString,
+                    policy: policy,
+                    truncations: &truncations
+                )
             )
 
-        case let value as [Any]:
-            return .array(
-                value.map {
-                    diagnosticValue(
-                        from: $0,
-                        depth: depth + 1,
-                        maximumDepth: maximumDepth
-                    )
-                }
-            )
+        case let values as [Any]:
+            if values.count > policy.maximumCollectionCount {
+                record(
+                    .maximumcollectioncount,
+                    limit: policy.maximumCollectionCount,
+                    in: &truncations
+                )
+            }
 
-        case let value as [String: Any]:
-            return .object(
-                value.mapValues {
+            var bounded: [ErrorDiagnosticValue] = []
+
+            for value in values.prefix(
+                policy.maximumCollectionCount
+            ) {
+                bounded.append(
                     diagnosticValue(
-                        from: $0,
+                        from: value,
                         depth: depth + 1,
-                        maximumDepth: maximumDepth
+                        policy: policy,
+                        truncations: &truncations
                     )
+                )
+            }
+
+            return .array(bounded)
+
+        case let values as [String: Any]:
+            let keys = values.keys.sorted()
+
+            if keys.count > policy.maximumCollectionCount {
+                record(
+                    .maximumcollectioncount,
+                    limit: policy.maximumCollectionCount,
+                    in: &truncations
+                )
+            }
+
+            var bounded: [String: ErrorDiagnosticValue] = [:]
+
+            for key in keys.prefix(
+                policy.maximumCollectionCount
+            ) {
+                guard let value = values[key] else {
+                    continue
                 }
-            )
+
+                bounded[key] =
+                    diagnosticValue(
+                        from: value,
+                        depth: depth + 1,
+                        policy: policy,
+                        truncations: &truncations
+                    )
+            }
+
+            return .object(bounded)
 
         case _ as NSNull:
             return .null
 
         default:
             return .string(
-                String(
-                    reflecting: value
+                boundedString(
+                    String(
+                        reflecting: value
+                    ),
+                    policy: policy,
+                    truncations: &truncations
                 )
             )
         }
+    }
+
+    private static func boundedPresentation(
+        _ presentation: ErrorPresentation,
+        policy: ErrorCapturePolicy,
+        truncations: inout [ErrorCaptureTruncation]
+    ) -> ErrorPresentation {
+        var recoveryOptions: [String] = []
+
+        if presentation.recoveryOptions.count > policy.maximumCollectionCount {
+            record(
+                .maximumcollectioncount,
+                limit: policy.maximumCollectionCount,
+                in: &truncations
+            )
+        }
+
+        for option in presentation.recoveryOptions.prefix(
+            policy.maximumCollectionCount
+        ) {
+            recoveryOptions.append(
+                boundedString(
+                    option,
+                    policy: policy,
+                    truncations: &truncations
+                )
+            )
+        }
+
+        return ErrorPresentation(
+            title: boundedOptionalString(
+                presentation.title,
+                policy: policy,
+                truncations: &truncations
+            ),
+            message: boundedString(
+                presentation.message,
+                policy: policy,
+                truncations: &truncations
+            ),
+            reason: boundedOptionalString(
+                presentation.reason,
+                policy: policy,
+                truncations: &truncations
+            ),
+            recoverySuggestion: boundedOptionalString(
+                presentation.recoverySuggestion,
+                policy: policy,
+                truncations: &truncations
+            ),
+            recoveryOptions: recoveryOptions,
+            helpAnchor: boundedOptionalString(
+                presentation.helpAnchor,
+                policy: policy,
+                truncations: &truncations
+            )
+        )
+    }
+
+    private static func appendField(
+        _ field: ErrorDiagnosticField,
+        to fields: inout [ErrorDiagnosticField],
+        keys: inout Set<ErrorDiagnosticKey>,
+        policy: ErrorCapturePolicy,
+        state: ErrorCaptureState,
+        truncations: inout [ErrorCaptureTruncation]
+    ) -> Bool {
+        guard !keys.contains(field.key) else {
+            return true
+        }
+
+        guard fields.count < policy.maximumFieldsPerError else {
+            record(
+                .maximumfields,
+                limit: policy.maximumFieldsPerError,
+                in: &truncations
+            )
+            return false
+        }
+
+        guard state.fieldCount < policy.maximumTotalFields else {
+            record(
+                .maximumtotalfields,
+                limit: policy.maximumTotalFields,
+                in: &truncations
+            )
+            return false
+        }
+
+        keys.insert(field.key)
+
+        let value =
+            boundedDiagnosticValue(
+                field.value,
+                depth: 0,
+                policy: policy,
+                truncations: &truncations
+            )
+
+        fields.append(
+            ErrorDiagnosticField(
+                key: field.key,
+                value: value,
+                sensitivity: field.sensitivity
+            )
+        )
+
+        state.fieldCount += 1
+
+        return true
+    }
+
+    private static func boundedDiagnosticValue(
+        _ value: ErrorDiagnosticValue,
+        depth: Int,
+        policy: ErrorCapturePolicy,
+        truncations: inout [ErrorCaptureTruncation]
+    ) -> ErrorDiagnosticValue {
+        guard depth < policy.maximumDiagnosticValueDepth else {
+            record(
+                .maximumdiagnosticvaluedepth,
+                limit: policy.maximumDiagnosticValueDepth,
+                in: &truncations
+            )
+            return .redacted
+        }
+
+        switch value {
+        case .string(let value):
+            return .string(
+                boundedString(
+                    value,
+                    policy: policy,
+                    truncations: &truncations
+                )
+            )
+
+        case .array(let values):
+            if values.count > policy.maximumCollectionCount {
+                record(
+                    .maximumcollectioncount,
+                    limit: policy.maximumCollectionCount,
+                    in: &truncations
+                )
+            }
+
+            var bounded: [ErrorDiagnosticValue] = []
+
+            for value in values.prefix(
+                policy.maximumCollectionCount
+            ) {
+                bounded.append(
+                    boundedDiagnosticValue(
+                        value,
+                        depth: depth + 1,
+                        policy: policy,
+                        truncations: &truncations
+                    )
+                )
+            }
+
+            return .array(bounded)
+
+        case .object(let values):
+            let keys = values.keys.sorted()
+
+            if keys.count > policy.maximumCollectionCount {
+                record(
+                    .maximumcollectioncount,
+                    limit: policy.maximumCollectionCount,
+                    in: &truncations
+                )
+            }
+
+            var bounded: [String: ErrorDiagnosticValue] = [:]
+
+            for key in keys.prefix(
+                policy.maximumCollectionCount
+            ) {
+                guard let value = values[key] else {
+                    continue
+                }
+
+                bounded[key] =
+                    boundedDiagnosticValue(
+                        value,
+                        depth: depth + 1,
+                        policy: policy,
+                        truncations: &truncations
+                    )
+            }
+
+            return .object(bounded)
+
+        case .integer,
+             .double,
+             .boolean,
+             .redacted,
+             .null:
+            return value
+        }
+    }
+
+    private static func boundedOptionalString(
+        _ value: String?,
+        policy: ErrorCapturePolicy,
+        truncations: inout [ErrorCaptureTruncation]
+    ) -> String? {
+        guard let value else {
+            return nil
+        }
+
+        return boundedString(
+            value,
+            policy: policy,
+            truncations: &truncations
+        )
+    }
+
+    private static func boundedString(
+        _ value: String,
+        policy: ErrorCapturePolicy,
+        truncations: inout [ErrorCaptureTruncation]
+    ) -> String {
+        guard value.count > policy.maximumStringLength else {
+            return value
+        }
+
+        record(
+            .maximumstringlength,
+            limit: policy.maximumStringLength,
+            in: &truncations
+        )
+
+        return String(
+            value.prefix(
+                policy.maximumStringLength
+            )
+        )
+    }
+
+    private static func record(
+        _ reason: ErrorCaptureTruncation.Reason,
+        limit: Int? = nil,
+        in truncations: inout [ErrorCaptureTruncation]
+    ) {
+        let truncation =
+            ErrorCaptureTruncation(
+                reason: reason,
+                limit: limit
+            )
+
+        guard !truncations.contains(truncation) else {
+            return
+        }
+
+        truncations.append(truncation)
     }
 
     private static func sensitivity(

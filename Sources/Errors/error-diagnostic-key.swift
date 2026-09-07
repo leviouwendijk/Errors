@@ -54,36 +54,17 @@ public struct ErrorDiagnosticKey:
     public static let url: Self = "url"
     public static let request: Self = "request"
     public static let response: Self = "response"
-    public static let context: Self = "context"
 }
 
 public extension ErrorDiagnosticField {
-    var key: ErrorDiagnosticKey {
-        .init(
-            rawValue: name
-        )
-    }
-
-    init(
-        key: ErrorDiagnosticKey,
-        value: ErrorDiagnosticValue,
-        sensitivity: Sensitivity = .ordinary
-    ) {
-        self.init(
-            name: key.rawValue,
-            value: value,
-            sensitivity: sensitivity
-        )
-    }
-
     init(
         key: ErrorDiagnosticKey,
         value: String,
         sensitivity: Sensitivity = .ordinary
     ) {
         self.init(
-            name: key.rawValue,
-            value: value,
+            key: key,
+            value: .string(value),
             sensitivity: sensitivity
         )
     }
@@ -94,8 +75,8 @@ public extension ErrorDiagnosticField {
         sensitivity: Sensitivity = .ordinary
     ) {
         self.init(
-            name: key.rawValue,
-            value: value,
+            key: key,
+            value: .integer(value),
             sensitivity: sensitivity
         )
     }
@@ -106,8 +87,8 @@ public extension ErrorDiagnosticField {
         sensitivity: Sensitivity = .ordinary
     ) {
         self.init(
-            name: key.rawValue,
-            value: value,
+            key: key,
+            value: .double(value),
             sensitivity: sensitivity
         )
     }
@@ -118,19 +99,9 @@ public extension ErrorDiagnosticField {
         sensitivity: Sensitivity = .ordinary
     ) {
         self.init(
-            name: key.rawValue,
-            value: value,
+            key: key,
+            value: .boolean(value),
             sensitivity: sensitivity
         )
-    }
-}
-
-public extension ErrorDiagnostic {
-    subscript(
-        field key: ErrorDiagnosticKey
-    ) -> ErrorDiagnosticField? {
-        self[
-            field: key.rawValue
-        ]
     }
 }

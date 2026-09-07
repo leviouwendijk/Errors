@@ -61,66 +61,22 @@ public struct ErrorDiagnosticField:
         case secret
     }
 
-    public let name: String
+    public let key: ErrorDiagnosticKey
     public let value: ErrorDiagnosticValue
     public let sensitivity: Sensitivity
 
+    public var name: String {
+        key.rawValue
+    }
+
     public init(
-        name: String,
+        key: ErrorDiagnosticKey,
         value: ErrorDiagnosticValue,
         sensitivity: Sensitivity = .ordinary
     ) {
-        self.name = name
+        self.key = key
         self.value = value
         self.sensitivity = sensitivity
-    }
-
-    public init(
-        name: String,
-        value: String,
-        sensitivity: Sensitivity = .ordinary
-    ) {
-        self.init(
-            name: name,
-            value: .string(value),
-            sensitivity: sensitivity
-        )
-    }
-
-    public init(
-        name: String,
-        value: Int,
-        sensitivity: Sensitivity = .ordinary
-    ) {
-        self.init(
-            name: name,
-            value: .integer(value),
-            sensitivity: sensitivity
-        )
-    }
-
-    public init(
-        name: String,
-        value: Double,
-        sensitivity: Sensitivity = .ordinary
-    ) {
-        self.init(
-            name: name,
-            value: .double(value),
-            sensitivity: sensitivity
-        )
-    }
-
-    public init(
-        name: String,
-        value: Bool,
-        sensitivity: Sensitivity = .ordinary
-    ) {
-        self.init(
-            name: name,
-            value: .boolean(value),
-            sensitivity: sensitivity
-        )
     }
 }
 
@@ -150,10 +106,10 @@ public struct ErrorDiagnostic:
     }
 
     public subscript(
-        field name: String
+        field key: ErrorDiagnosticKey
     ) -> ErrorDiagnosticField? {
         fields.first {
-            $0.name == name
+            $0.key == key
         }
     }
 }
@@ -338,19 +294,31 @@ public struct ErrorCapturePolicy:
     public let maximumFieldsPerError: Int
     public let userInfo: UserInfoCapture
     public let maximumDiagnosticValueDepth: Int
+    public let maximumStringLength: Int
+    public let maximumCollectionCount: Int
+    public let maximumTotalReports: Int
+    public let maximumTotalFields: Int
 
     public init(
         maximumDepth: Int = 12,
         maximumRelationsPerError: Int = 32,
         maximumFieldsPerError: Int = 64,
         userInfo: UserInfoCapture = .all,
-        maximumDiagnosticValueDepth: Int = 4
+        maximumDiagnosticValueDepth: Int = 4,
+        maximumStringLength: Int = 8192,
+        maximumCollectionCount: Int = 128,
+        maximumTotalReports: Int = 256,
+        maximumTotalFields: Int = 1024
     ) {
         self.maximumDepth = max(0, maximumDepth)
         self.maximumRelationsPerError = max(0, maximumRelationsPerError)
         self.maximumFieldsPerError = max(0, maximumFieldsPerError)
         self.userInfo = userInfo
         self.maximumDiagnosticValueDepth = max(0, maximumDiagnosticValueDepth)
+        self.maximumStringLength = max(0, maximumStringLength)
+        self.maximumCollectionCount = max(0, maximumCollectionCount)
+        self.maximumTotalReports = max(1, maximumTotalReports)
+        self.maximumTotalFields = max(0, maximumTotalFields)
     }
 
     public static let diagnostic = Self()
@@ -360,7 +328,11 @@ public struct ErrorCapturePolicy:
         maximumRelationsPerError: 8,
         maximumFieldsPerError: 16,
         userInfo: .none,
-        maximumDiagnosticValueDepth: 2
+        maximumDiagnosticValueDepth: 2,
+        maximumStringLength: 1024,
+        maximumCollectionCount: 32,
+        maximumTotalReports: 32,
+        maximumTotalFields: 128
     )
 
     public static let `default` = diagnostic
@@ -390,19 +362,29 @@ public struct ErrorReport:
 
     public let presentation: ErrorPresentation
     public let diagnostic: ErrorDiagnostic
+    public let contexts: [ErrorContext]
     public let relations: [Relation]
-    public let isTruncated: Bool
+    public let truncations: [ErrorCaptureTruncation]
 
     public init(
         presentation: ErrorPresentation,
         diagnostic: ErrorDiagnostic,
+        contexts: [ErrorContext] = [],
         relations: [Relation] = [],
-        isTruncated: Bool = false
+        truncations: [ErrorCaptureTruncation] = []
     ) {
         self.presentation = presentation
         self.diagnostic = diagnostic
+        self.contexts = contexts
         self.relations = relations
-        self.isTruncated = isTruncated
+        self.truncations = truncations
+    }
+
+    public var isTruncated: Bool {
+        !truncations.isEmpty
+            || relations.contains {
+                $0.report.isTruncated
+            }
     }
 
     public init(
@@ -430,12 +412,6 @@ public struct ErrorReport:
     public var related: [ErrorReport] {
         reports(
             relatedBy: .related
-        )
-    }
-
-    public var context: [ErrorReport] {
-        reports(
-            relatedBy: .context
         )
     }
 

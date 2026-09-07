@@ -97,40 +97,30 @@ public struct ErrorReportAdding {
     }
 
     public func context(
-        _ value: String,
+        _ message: String,
+        fields: [ErrorDiagnosticField] = [],
         sensitivity: ErrorDiagnosticField.Sensitivity = .ordinary
     ) -> ErrorReport {
-        let values: [ErrorDiagnosticValue]
+        context(
+            ErrorContext(
+                message: message,
+                fields: fields,
+                messageSensitivity: sensitivity
+            )
+        )
+    }
 
-        switch report.diagnostic[
-            field: .context
-        ]?.value {
-        case .array(let existing):
-            values = existing + [
-                .string(value),
-            ]
-
-        case .string(let existing):
-            values = [
-                .string(existing),
-                .string(value),
-            ]
-
-        case .none:
-            values = [
-                .string(value),
-            ]
-
-        default:
-            values = [
-                .string(value),
-            ]
-        }
-
-        return field(
-            .context,
-            value: .array(values),
-            sensitivity: sensitivity
+    public func context(
+        _ context: ErrorContext
+    ) -> ErrorReport {
+        ErrorReport(
+            presentation: report.presentation,
+            diagnostic: report.diagnostic,
+            contexts:
+                report.contexts
+                + [context],
+            relations: report.relations,
+            truncations: report.truncations
         )
     }
 }
@@ -148,8 +138,9 @@ private extension ErrorReportAdding {
                 code: report.diagnostic.code,
                 fields: fields
             ),
+            contexts: report.contexts,
             relations: report.relations,
-            isTruncated: report.isTruncated
+            truncations: report.truncations
         )
     }
 }
