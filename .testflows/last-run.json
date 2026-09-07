@@ -1,0 +1,62 @@
+{
+  "failed" : 0,
+  "failed_names" : [
+
+  ],
+  "generated_at" : "2026-09-07T07:57:53Z",
+  "passed" : 4,
+  "results" : [
+    {
+      "display_name" : "error-report-semantic-capture",
+      "duration_seconds" : 0.001217961311340332,
+      "name" : "error-report-semantic-capture",
+      "status" : "passed",
+      "tags" : [
+        "capture",
+        "errors",
+        "report",
+        "semantic"
+      ]
+    },
+    {
+      "display_name" : "error-report-foundation-chain",
+      "duration_seconds" : 0.00030601024627685547,
+      "name" : "error-report-foundation-chain",
+      "status" : "passed",
+      "tags" : [
+        "errors",
+        "foundation",
+        "recursive",
+        "report"
+      ]
+    },
+    {
+      "display_name" : "error-report-aggregate-dsl",
+      "duration_seconds" : 0.0003370046615600586,
+      "name" : "error-report-aggregate-dsl",
+      "status" : "passed",
+      "tags" : [
+        "aggregate",
+        "dsl",
+        "errors",
+        "structured-content"
+      ]
+    },
+    {
+      "display_name" : "error-report-semantic-utilities",
+      "duration_seconds" : 0.0001920461654663086,
+      "name" : "error-report-semantic-utilities",
+      "status" : "passed",
+      "tags" : [
+        "adding",
+        "errors",
+        "identity",
+        "redaction",
+        "relations"
+      ]
+    }
+  ],
+  "skipped" : 0,
+  "title" : "Errors flow tests",
+  "total" : 4
+}

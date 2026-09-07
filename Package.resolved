@@ -1,0 +1,15 @@
+{
+  "originHash" : "9b98a8837dd782bdf602b4bb689d7ec9c654c683027cac8727d657c0d3d5564d",
+  "pins" : [
+    {
+      "identity" : "dsl",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/DSL.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "30ec6798f883b91f697d060bb001e0e4f7a09225"
+      }
+    }
+  ],
+  "version" : 3
+}
