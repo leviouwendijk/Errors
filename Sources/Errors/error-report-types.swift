@@ -116,10 +116,7 @@ public struct ErrorDiagnostic:
 
 public struct ErrorRelation: Sendable {
     public struct Kind:
-        RawRepresentable,
-        ExpressibleByStringLiteral,
         Sendable,
-        Codable,
         Hashable
     {
         public let rawValue: String
@@ -130,65 +127,20 @@ public struct ErrorRelation: Sendable {
             self.rawValue = rawValue
         }
 
-        public init(
-            stringLiteral value: String
-        ) {
-            self.init(
-                rawValue: value
-            )
-        }
-
-        public init(
-            from decoder: any Decoder
-        ) throws {
-            let container = try decoder
-                .singleValueContainer()
-
-            self.init(
-                rawValue: try container.decode(
-                    String.self
-                )
-            )
-        }
-
-        public func encode(
-            to encoder: any Encoder
-        ) throws {
-            var container = encoder
-                .singleValueContainer()
-
-            try container.encode(
-                rawValue
-            )
-        }
-
-        public static let underlying = Self(
-            rawValue: "underlying"
-        )
-
-        public static let aggregate = Self(
-            rawValue: "aggregate"
-        )
-
-        public static let related = Self(
-            rawValue: "related"
-        )
-
-        public static let context = Self(
-            rawValue: "context"
-        )
-
-        public static let recoveryattempt = Self(
-            rawValue: "recoveryattempt"
-        )
-
-        public static let remotecause = Self(
-            rawValue: "remotecause"
-        )
-
-        public static let toolfailure = Self(
-            rawValue: "toolfailure"
-        )
+        public static let underlying: Self =
+            "underlying"
+        public static let aggregate: Self =
+            "aggregate"
+        public static let related: Self =
+            "related"
+        public static let context: Self =
+            "context"
+        public static let recoveryattempt: Self =
+            "recoveryattempt"
+        public static let remotecause: Self =
+            "remotecause"
+        public static let toolfailure: Self =
+            "toolfailure"
     }
 
     public let kind: Kind
@@ -272,6 +224,28 @@ public protocol ErrorRelationsProviding: Error {
     var errorRelations: [ErrorRelation] { get }
 }
 
+/// An error that provides stable semantic presentation and identity while
+/// participating in the structured diagnostic and relation capture model.
+///
+/// Diagnostic fields and relations default to empty so semantic errors only
+/// need to author the evidence they actually possess.
+public protocol SemanticError:
+    PresentableError,
+    ErrorIdentityProviding,
+    ErrorDiagnosticFieldsProviding,
+    ErrorRelationsProviding
+{}
+
+public extension SemanticError {
+    var errorDiagnosticFields: [ErrorDiagnosticField] {
+        []
+    }
+
+    var errorRelations: [ErrorRelation] {
+        []
+    }
+}
+
 public struct ErrorCapturePolicy:
     Sendable,
     Codable,
@@ -287,6 +261,47 @@ public struct ErrorCapturePolicy:
         case none
         case standard
         case all
+    }
+
+    public enum ValidationError:
+        Error,
+        Sendable,
+        Hashable,
+        LocalizedError
+    {
+        case negativeLimit(
+            field: String,
+            value: Int
+        )
+        case maximumTotalReportsBelowOne(Int)
+
+        public var errorDescription: String? {
+            switch self {
+            case .negativeLimit(
+                let field,
+                let value
+            ):
+                return "Error capture limit '\(field)' cannot be negative; received \(value)."
+
+            case .maximumTotalReportsBelowOne(let value):
+                return "Error capture maximumTotalReports must be at least 1; received \(value)."
+            }
+        }
+    }
+
+    private enum CodingKeys:
+        String,
+        CodingKey
+    {
+        case maximumDepth
+        case maximumRelationsPerError
+        case maximumFieldsPerError
+        case userInfo
+        case maximumDiagnosticValueDepth
+        case maximumStringLength
+        case maximumCollectionCount
+        case maximumTotalReports
+        case maximumTotalFields
     }
 
     public let maximumDepth: Int
@@ -309,22 +324,162 @@ public struct ErrorCapturePolicy:
         maximumCollectionCount: Int = 128,
         maximumTotalReports: Int = 256,
         maximumTotalFields: Int = 1024
-    ) {
-        self.maximumDepth = max(0, maximumDepth)
-        self.maximumRelationsPerError = max(0, maximumRelationsPerError)
-        self.maximumFieldsPerError = max(0, maximumFieldsPerError)
-        self.userInfo = userInfo
-        self.maximumDiagnosticValueDepth = max(0, maximumDiagnosticValueDepth)
-        self.maximumStringLength = max(0, maximumStringLength)
-        self.maximumCollectionCount = max(0, maximumCollectionCount)
-        self.maximumTotalReports = max(1, maximumTotalReports)
-        self.maximumTotalFields = max(0, maximumTotalFields)
+    ) throws {
+        try Self.requireNonnegative(
+            maximumDepth,
+            field: "maximumDepth"
+        )
+        try Self.requireNonnegative(
+            maximumRelationsPerError,
+            field: "maximumRelationsPerError"
+        )
+        try Self.requireNonnegative(
+            maximumFieldsPerError,
+            field: "maximumFieldsPerError"
+        )
+        try Self.requireNonnegative(
+            maximumDiagnosticValueDepth,
+            field: "maximumDiagnosticValueDepth"
+        )
+        try Self.requireNonnegative(
+            maximumStringLength,
+            field: "maximumStringLength"
+        )
+        try Self.requireNonnegative(
+            maximumCollectionCount,
+            field: "maximumCollectionCount"
+        )
+        try Self.requireNonnegative(
+            maximumTotalFields,
+            field: "maximumTotalFields"
+        )
+
+        guard maximumTotalReports >= 1 else {
+            throw ValidationError
+                .maximumTotalReportsBelowOne(
+                    maximumTotalReports
+                )
+        }
+
+        self.init(
+            validatedMaximumDepth: maximumDepth,
+            maximumRelationsPerError: maximumRelationsPerError,
+            maximumFieldsPerError: maximumFieldsPerError,
+            userInfo: userInfo,
+            maximumDiagnosticValueDepth: maximumDiagnosticValueDepth,
+            maximumStringLength: maximumStringLength,
+            maximumCollectionCount: maximumCollectionCount,
+            maximumTotalReports: maximumTotalReports,
+            maximumTotalFields: maximumTotalFields
+        )
     }
 
-    public static let diagnostic = Self()
+    public init(
+        from decoder: any Decoder
+    ) throws {
+        let container = try decoder.container(
+            keyedBy: CodingKeys.self
+        )
+
+        try self.init(
+            maximumDepth: container.decode(
+                Int.self,
+                forKey: .maximumDepth
+            ),
+            maximumRelationsPerError: container.decode(
+                Int.self,
+                forKey: .maximumRelationsPerError
+            ),
+            maximumFieldsPerError: container.decode(
+                Int.self,
+                forKey: .maximumFieldsPerError
+            ),
+            userInfo: container.decode(
+                UserInfoCapture.self,
+                forKey: .userInfo
+            ),
+            maximumDiagnosticValueDepth: container.decode(
+                Int.self,
+                forKey: .maximumDiagnosticValueDepth
+            ),
+            maximumStringLength: container.decode(
+                Int.self,
+                forKey: .maximumStringLength
+            ),
+            maximumCollectionCount: container.decode(
+                Int.self,
+                forKey: .maximumCollectionCount
+            ),
+            maximumTotalReports: container.decode(
+                Int.self,
+                forKey: .maximumTotalReports
+            ),
+            maximumTotalFields: container.decode(
+                Int.self,
+                forKey: .maximumTotalFields
+            )
+        )
+    }
+
+    public func encode(
+        to encoder: any Encoder
+    ) throws {
+        var container = encoder.container(
+            keyedBy: CodingKeys.self
+        )
+
+        try container.encode(
+            maximumDepth,
+            forKey: .maximumDepth
+        )
+        try container.encode(
+            maximumRelationsPerError,
+            forKey: .maximumRelationsPerError
+        )
+        try container.encode(
+            maximumFieldsPerError,
+            forKey: .maximumFieldsPerError
+        )
+        try container.encode(
+            userInfo,
+            forKey: .userInfo
+        )
+        try container.encode(
+            maximumDiagnosticValueDepth,
+            forKey: .maximumDiagnosticValueDepth
+        )
+        try container.encode(
+            maximumStringLength,
+            forKey: .maximumStringLength
+        )
+        try container.encode(
+            maximumCollectionCount,
+            forKey: .maximumCollectionCount
+        )
+        try container.encode(
+            maximumTotalReports,
+            forKey: .maximumTotalReports
+        )
+        try container.encode(
+            maximumTotalFields,
+            forKey: .maximumTotalFields
+        )
+    }
+
+    public static let diagnostic = Self(
+        validatedMaximumDepth: 12,
+        maximumRelationsPerError: 32,
+        maximumFieldsPerError: 64,
+        userInfo: .all,
+        maximumDiagnosticValueDepth: 4,
+        maximumStringLength: 8192,
+        maximumCollectionCount: 128,
+        maximumTotalReports: 256,
+        maximumTotalFields: 1024
+    )
 
     public static let minimal = Self(
-        maximumDepth: 4,
+        validatedMaximumDepth: 4,
         maximumRelationsPerError: 8,
         maximumFieldsPerError: 16,
         userInfo: .none,
@@ -336,6 +491,40 @@ public struct ErrorCapturePolicy:
     )
 
     public static let `default` = diagnostic
+
+    private init(
+        validatedMaximumDepth maximumDepth: Int,
+        maximumRelationsPerError: Int,
+        maximumFieldsPerError: Int,
+        userInfo: UserInfoCapture,
+        maximumDiagnosticValueDepth: Int,
+        maximumStringLength: Int,
+        maximumCollectionCount: Int,
+        maximumTotalReports: Int,
+        maximumTotalFields: Int
+    ) {
+        self.maximumDepth = maximumDepth
+        self.maximumRelationsPerError = maximumRelationsPerError
+        self.maximumFieldsPerError = maximumFieldsPerError
+        self.userInfo = userInfo
+        self.maximumDiagnosticValueDepth = maximumDiagnosticValueDepth
+        self.maximumStringLength = maximumStringLength
+        self.maximumCollectionCount = maximumCollectionCount
+        self.maximumTotalReports = maximumTotalReports
+        self.maximumTotalFields = maximumTotalFields
+    }
+
+    private static func requireNonnegative(
+        _ value: Int,
+        field: String
+    ) throws {
+        guard value >= 0 else {
+            throw ValidationError.negativeLimit(
+                field: field,
+                value: value
+            )
+        }
+    }
 }
 
 public struct ErrorReport:

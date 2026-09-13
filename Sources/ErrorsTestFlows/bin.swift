@@ -65,4 +65,5 @@ enum ErrorsFlowSuite:
                 .runSemanticUtilities()
         },
     ] + errorsFoundationFlows
+        + errorsInvariantFlows
 }
