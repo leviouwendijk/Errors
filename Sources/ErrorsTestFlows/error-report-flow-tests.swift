@@ -273,14 +273,14 @@ enum ErrorsFlowTesting {
         )
 
         try Expect.equal(
-            enriched.diagnostic[
-                field: .context
-            ]?.value,
-            .array([
-                .string("Loading model response"),
-                .string("Streaming transport active"),
-            ]),
-            "adding.context accumulates context"
+            enriched.contexts.map {
+                $0.message
+            },
+            [
+                "Loading model response",
+                "Streaming transport active",
+            ],
+            "adding.context accumulates first-class error contexts"
         )
 
         let publicReport = enriched.redacted(
@@ -378,7 +378,7 @@ enum ErrorsFlowTesting {
 
 private struct SemanticFixtureError:
     Error,
-    ErrorPresentationProviding,
+    PresentableError,
     ErrorIdentityProviding,
     ErrorDiagnosticFieldsProviding,
     ErrorRelationsProviding
@@ -407,12 +407,12 @@ private struct SemanticFixtureError:
     var errorDiagnosticFields: [ErrorDiagnosticField] {
         [
             .init(
-                name: "endpoint",
+                key: .endpoint,
                 value: "/fixture",
                 sensitivity: .potentiallySensitive
             ),
             .init(
-                name: "attempt",
+                key: .attempt,
                 value: 2
             ),
         ]

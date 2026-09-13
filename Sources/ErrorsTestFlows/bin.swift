@@ -64,5 +64,5 @@ enum ErrorsFlowSuite:
             try await ErrorsFlowTesting
                 .runSemanticUtilities()
         },
-    ]
+    ] + errorsFoundationFlows
 }

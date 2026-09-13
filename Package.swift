@@ -4,36 +4,52 @@ import PackageDescription
 
 let package = Package(
     name: "Errors",
-    // platforms: [
-    //     .macOS(.v13)
-    // ],
+    platforms: [
+        .macOS(.v13)
+    ],
     products: [
         .library(
             name: "Errors",
-            targets: ["Errors"]
+            targets: [
+                "Errors",
+            ]
         ),
         .library(
             name: "ErrorsDSL",
-            targets: ["ErrorsDSL"]
+            targets: [
+                "ErrorsDSL",
+            ]
         ),
-        // .executable(
-        //     name: "errtest",
-        //     targets: ["ErrorsTestFlows"]
-        // ),
+        .executable(
+            name: "errtest",
+            targets: [
+                "ErrorsTestFlows",
+            ]
+        ),
     ],
     dependencies: [
+        .package(
+            url: "https://github.com/leviouwendijk/Primitives.git",
+            branch: "master"
+        ),
         .package(
             url: "https://github.com/leviouwendijk/DSL.git",
             branch: "master"
         ),
-        // .package(
-        //     url: "https://github.com/leviouwendijk/TestFlows.git",
-        //     branch: "master"
-        // ),
+        .package(
+            url: "https://github.com/leviouwendijk/TestFlows.git",
+            branch: "master"
+        ),
     ],
     targets: [
         .target(
-            name: "Errors"
+            name: "Errors",
+            dependencies: [
+                .product(
+                    name: "Primitives",
+                    package: "Primitives"
+                ),
+            ]
         ),
         .target(
             name: "ErrorsDSL",
@@ -45,21 +61,27 @@ let package = Package(
                 ),
             ]
         ),
-        // .executableTarget(
-        //     name: "ErrorsTestFlows",
-        //     dependencies: [
-        //         "Errors",
-        //         "ErrorsDSL",
-        //         .product(
-        //             name: "DSL",
-        //             package: "DSL"
-        //         ),
-        //         .product(
-        //             name: "TestFlows",
-        //             package: "TestFlows"
-        //         ),
-        //     ]
-        // ),
+        .executableTarget(
+            name: "ErrorsTestFlows",
+            dependencies: [
+                "Errors",
+                "ErrorsDSL",
+                .product(
+                    name: "DSL",
+                    package: "DSL"
+                ),
+                .product(
+                    name: "Primitives",
+                    package: "Primitives"
+                ),
+                .product(
+                    name: "TestFlows",
+                    package: "TestFlows"
+                ),
+            ]
+        ),
     ],
-    swiftLanguageModes: [.v6]
+    swiftLanguageModes: [
+        .v6,
+    ]
 )

@@ -1,50 +1,12 @@
-import Foundation
+import Primitives
 
-public struct ErrorDiagnosticKey:
-    RawRepresentable,
-    ExpressibleByStringLiteral,
-    Sendable,
-    Codable,
-    Hashable
-{
+public struct ErrorDiagnosticKey: StringIdentifier {
     public let rawValue: String
 
     public init(
         rawValue: String
     ) {
         self.rawValue = rawValue
-    }
-
-    public init(
-        stringLiteral value: String
-    ) {
-        self.init(
-            rawValue: value
-        )
-    }
-
-    public init(
-        from decoder: any Decoder
-    ) throws {
-        let container = try decoder
-            .singleValueContainer()
-
-        self.init(
-            rawValue: try container.decode(
-                String.self
-            )
-        )
-    }
-
-    public func encode(
-        to encoder: any Encoder
-    ) throws {
-        var container = encoder
-            .singleValueContainer()
-
-        try container.encode(
-            rawValue
-        )
     }
 
     public static let endpoint: Self = "endpoint"
