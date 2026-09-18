@@ -3,12 +3,12 @@
   "failed_names" : [
 
   ],
-  "generated_at" : "2026-09-07T07:57:53Z",
-  "passed" : 4,
+  "generated_at" : "2026-09-13T16:50:57Z",
+  "passed" : 9,
   "results" : [
     {
       "display_name" : "error-report-semantic-capture",
-      "duration_seconds" : 0.001217961311340332,
+      "duration_seconds" : 0.001322031021118164,
       "name" : "error-report-semantic-capture",
       "status" : "passed",
       "tags" : [
@@ -20,7 +20,7 @@
     },
     {
       "display_name" : "error-report-foundation-chain",
-      "duration_seconds" : 0.00030601024627685547,
+      "duration_seconds" : 0.0003210306167602539,
       "name" : "error-report-foundation-chain",
       "status" : "passed",
       "tags" : [
@@ -32,7 +32,7 @@
     },
     {
       "display_name" : "error-report-aggregate-dsl",
-      "duration_seconds" : 0.0003370046615600586,
+      "duration_seconds" : 0.00045800209045410156,
       "name" : "error-report-aggregate-dsl",
       "status" : "passed",
       "tags" : [
@@ -44,7 +44,7 @@
     },
     {
       "display_name" : "error-report-semantic-utilities",
-      "duration_seconds" : 0.0001920461654663086,
+      "duration_seconds" : 0.00015497207641601562,
       "name" : "error-report-semantic-utilities",
       "status" : "passed",
       "tags" : [
@@ -54,9 +54,70 @@
         "redaction",
         "relations"
       ]
+    },
+    {
+      "display_name" : "errors-string-identifiers",
+      "duration_seconds" : 0.00012004375457763672,
+      "name" : "errors-string-identifiers",
+      "status" : "passed",
+      "tags" : [
+        "codable",
+        "errors",
+        "identifiers",
+        "primitives"
+      ]
+    },
+    {
+      "display_name" : "error-diagnostic-value-json-roundtrip",
+      "duration_seconds" : 0.0009570121765136719,
+      "name" : "error-diagnostic-value-json-roundtrip",
+      "status" : "passed",
+      "tags" : [
+        "errors",
+        "json",
+        "primitives",
+        "redaction"
+      ]
+    },
+    {
+      "display_name" : "error-report-json-roundtrip",
+      "duration_seconds" : 0.001950979232788086,
+      "name" : "error-report-json-roundtrip",
+      "status" : "passed",
+      "tags" : [
+        "errors",
+        "json",
+        "primitives",
+        "relations",
+        "report"
+      ]
+    },
+    {
+      "display_name" : "error-capture-policy-invariants",
+      "duration_seconds" : 0.0001049041748046875,
+      "name" : "error-capture-policy-invariants",
+      "status" : "passed",
+      "tags" : [
+        "capture-policy",
+        "codable",
+        "errors",
+        "invariants"
+      ]
+    },
+    {
+      "display_name" : "semantic-error-contract",
+      "duration_seconds" : 0.00013697147369384766,
+      "name" : "semantic-error-contract",
+      "status" : "passed",
+      "tags" : [
+        "errors",
+        "identity",
+        "report",
+        "semantic-error"
+      ]
     }
   ],
   "skipped" : 0,
   "title" : "Errors flow tests",
-  "total" : 4
+  "total" : 9
 }
