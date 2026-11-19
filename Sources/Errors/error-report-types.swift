@@ -11,6 +11,12 @@ public struct ErrorPresentation:
     public let recoverySuggestion: String?
     public let recoveryOptions: [String]
     public let helpAnchor: String?
+    /// The message and reason are the only presentation text that may carry
+    /// runtime values (a mailbox, a server's words); title, suggestion and
+    /// options are authored text and stay ordinary.
+    public let messageSensitivity: ErrorSensitivity
+    public let reasonSensitivity: ErrorSensitivity
+    public let reasonOrigin: ErrorTextOrigin
 
     public init(
         title: String? = nil,
@@ -18,7 +24,10 @@ public struct ErrorPresentation:
         reason: String? = nil,
         recoverySuggestion: String? = nil,
         recoveryOptions: [String] = [],
-        helpAnchor: String? = nil
+        helpAnchor: String? = nil,
+        messageSensitivity: ErrorSensitivity = .ordinary,
+        reasonSensitivity: ErrorSensitivity = .ordinary,
+        reasonOrigin: ErrorTextOrigin = .local
     ) {
         self.title = title
         self.message = message
@@ -26,6 +35,31 @@ public struct ErrorPresentation:
         self.recoverySuggestion = recoverySuggestion
         self.recoveryOptions = recoveryOptions
         self.helpAnchor = helpAnchor
+        self.messageSensitivity = messageSensitivity
+        self.reasonSensitivity = reasonSensitivity
+        self.reasonOrigin = reasonOrigin
+    }
+
+    /// A copy with each text part replaced; sensitivities and origin stay.
+    public func replacingText(
+        title: String?,
+        message: String,
+        reason: String?,
+        recoverySuggestion: String?,
+        recoveryOptions: [String],
+        helpAnchor: String?
+    ) -> ErrorPresentation {
+        ErrorPresentation(
+            title: title,
+            message: message,
+            reason: reason,
+            recoverySuggestion: recoverySuggestion,
+            recoveryOptions: recoveryOptions,
+            helpAnchor: helpAnchor,
+            messageSensitivity: messageSensitivity,
+            reasonSensitivity: reasonSensitivity,
+            reasonOrigin: reasonOrigin
+        )
     }
 }
 
@@ -49,21 +83,9 @@ public struct ErrorDiagnosticField:
     Codable,
     Hashable
 {
-    public enum Sensitivity:
-        String,
-        Sendable,
-        Codable,
-        Hashable,
-        CaseIterable
-    {
-        case ordinary
-        case potentiallySensitive
-        case secret
-    }
-
     public let key: ErrorDiagnosticKey
     public let value: ErrorDiagnosticValue
-    public let sensitivity: Sensitivity
+    public let sensitivity: ErrorSensitivity
 
     public var name: String {
         key.rawValue
@@ -72,7 +94,7 @@ public struct ErrorDiagnosticField:
     public init(
         key: ErrorDiagnosticKey,
         value: ErrorDiagnosticValue,
-        sensitivity: Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) {
         self.key = key
         self.value = value
@@ -135,12 +157,12 @@ public struct ErrorRelation: Sendable {
             "related"
         public static let context: Self =
             "context"
-        public static let recoveryattempt: Self =
-            "recoveryattempt"
-        public static let remotecause: Self =
-            "remotecause"
-        public static let toolfailure: Self =
-            "toolfailure"
+        public static let recovery_attempt: Self =
+            "recovery_attempt"
+        public static let remote_cause: Self =
+            "remote_cause"
+        public static let tool_failure: Self =
+            "tool_failure"
     }
 
     public let kind: Kind

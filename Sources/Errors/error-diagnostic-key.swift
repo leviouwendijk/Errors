@@ -22,7 +22,7 @@ public extension ErrorDiagnosticField {
     init(
         key: ErrorDiagnosticKey,
         value: String,
-        sensitivity: Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) {
         self.init(
             key: key,
@@ -34,7 +34,7 @@ public extension ErrorDiagnosticField {
     init(
         key: ErrorDiagnosticKey,
         value: Int,
-        sensitivity: Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) {
         self.init(
             key: key,
@@ -46,7 +46,7 @@ public extension ErrorDiagnosticField {
     init(
         key: ErrorDiagnosticKey,
         value: Double,
-        sensitivity: Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) {
         self.init(
             key: key,
@@ -58,7 +58,7 @@ public extension ErrorDiagnosticField {
     init(
         key: ErrorDiagnosticKey,
         value: Bool,
-        sensitivity: Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) {
         self.init(
             key: key,

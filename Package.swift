@@ -20,12 +20,12 @@ let package = Package(
                 "ErrorsDSL",
             ]
         ),
-        // .executable(
-        //     name: "errtest",
-        //     targets: [
-        //         "ErrorsTestFlows",
-        //     ]
-        // ),
+        .executable(
+            name: "t_errors",
+            targets: [
+                "ErrorsTests",
+            ]
+        ),
     ],
     dependencies: [
         .package(
@@ -36,10 +36,10 @@ let package = Package(
             url: "https://github.com/leviouwendijk/DSL.git",
             branch: "master"
         ),
-        // .package(
-        //     url: "https://github.com/leviouwendijk/TestFlows.git",
-        //     branch: "master"
-        // ),
+        .package(
+            url: "https://github.com/leviouwendijk/Testing.git",
+            branch: "master"
+        ),
     ],
     targets: [
         .target(
@@ -61,25 +61,26 @@ let package = Package(
                 ),
             ]
         ),
-        // .executableTarget(
-        //     name: "ErrorsTestFlows",
-        //     dependencies: [
-        //         "Errors",
-        //         "ErrorsDSL",
-        //         .product(
-        //             name: "DSL",
-        //             package: "DSL"
-        //         ),
-        //         .product(
-        //             name: "Primitives",
-        //             package: "Primitives"
-        //         ),
-        //         .product(
-        //             name: "TestFlows",
-        //             package: "TestFlows"
-        //         ),
-        //     ]
-        // ),
+        .executableTarget(
+            name: "ErrorsTests",
+            dependencies: [
+                "Errors",
+                "ErrorsDSL",
+                .product(
+                    name: "DSL",
+                    package: "DSL"
+                ),
+                .product(
+                    name: "Primitives",
+                    package: "Primitives"
+                ),
+                .product(
+                    name: "Testing",
+                    package: "Testing"
+                ),
+            ],
+            path: "Testing/ErrorsTests"
+        ),
     ],
     swiftLanguageModes: [
         .v6,

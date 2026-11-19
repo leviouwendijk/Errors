@@ -1,13 +1,22 @@
 {
-  "originHash" : "192471ad1f5cfb1f803ec0ea7da5c3fd4e147430385b698346f499c75cb556f7",
+  "originHash" : "525527afaceb52614d5a8e8a930084edddae2f49ee4bd4a020a95d7721ee3d63",
   "pins" : [
+    {
+      "identity" : "atomos",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Atomos.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "5ffdb160c4913e02214020eb75ac620900cf2914"
+      }
+    },
     {
       "identity" : "dsl",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/leviouwendijk/DSL.git",
       "state" : {
         "branch" : "master",
-        "revision" : "30ec6798f883b91f697d060bb001e0e4f7a09225"
+        "revision" : "b85a4fcf315dfa6c100b38adc7a9cdec15ad817f"
       }
     },
     {
@@ -16,7 +25,16 @@
       "location" : "https://github.com/leviouwendijk/Primitives.git",
       "state" : {
         "branch" : "master",
-        "revision" : "03f80f4df2eab71c69de01e5b0e43f786c8abaad"
+        "revision" : "776500d2ee4eb47ca536bd307ce1bb9d48878423"
+      }
+    },
+    {
+      "identity" : "testing",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/leviouwendijk/Testing.git",
+      "state" : {
+        "branch" : "master",
+        "revision" : "105eecb68c3db99119dff3afeb846b7923abbc85"
       }
     }
   ],

@@ -8,8 +8,8 @@ public extension ErrorReport {
             }
     }
 
-    var deepestunderlying: ErrorReport {
-        underlying?.deepestunderlying
+    var deepest_underlying: ErrorReport {
+        underlying?.deepest_underlying
         ?? self
     }
 

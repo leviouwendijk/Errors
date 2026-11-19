@@ -13,7 +13,7 @@ public struct ErrorStructuredContentOptions:
     public init(
         includesDiagnostics: Bool = true,
         includesRelations: Bool = true,
-        redaction: ErrorRedactionPolicy = .publicsafe
+        redaction: ErrorRedactionPolicy = .public_safe
     ) {
         self.includesDiagnostics = includesDiagnostics
         self.includesRelations = includesRelations
@@ -23,13 +23,13 @@ public struct ErrorStructuredContentOptions:
     public static let summary = Self(
         includesDiagnostics: false,
         includesRelations: false,
-        redaction: .publicsafe
+        redaction: .public_safe
     )
 
     public static let diagnostic = Self(
         includesDiagnostics: true,
         includesRelations: true,
-        redaction: .internaldiagnostic
+        redaction: .internal_diagnostic
     )
 
     public static let complete = Self(
@@ -88,7 +88,23 @@ public extension ErrorReport {
         )
     }
 
+    /// The report under `options.redaction`, rendered. To scrub free text
+    /// as well, redact with a text redactor first and render that report
+    /// with a policy that keeps what remains.
     func structuredContent(
+        options: ErrorStructuredContentOptions
+    ) -> StructuredContent {
+        redacted(
+            policy: options.redaction
+        )
+        .rendered(
+            options: options
+        )
+    }
+}
+
+private extension ErrorReport {
+    func rendered(
         options: ErrorStructuredContentOptions
     ) -> StructuredContent {
         var content: [StructuredContent] = [
@@ -106,7 +122,9 @@ public extension ErrorReport {
                 presentationGroup(
                     role: .errorReason,
                     title: "Reason",
-                    value: reason
+                    value: reason,
+                    quoted:
+                        presentation.reasonOrigin == .remote
                 )
             )
         }
@@ -169,8 +187,7 @@ public extension ErrorReport {
                     content: .collection(
                         contexts.map {
                             contextContent(
-                                $0,
-                                options: options
+                                $0
                             )
                         }
                     )
@@ -180,9 +197,7 @@ public extension ErrorReport {
 
         if options.includesDiagnostics {
             content.append(
-                diagnosticContent(
-                    options: options
-                )
+                diagnosticContent()
             )
         }
 
@@ -211,9 +226,7 @@ public extension ErrorReport {
             )
         )
     }
-}
 
-private extension ErrorReport {
     var shortTypeName: String {
         diagnostic.typeName
             .split(
@@ -227,26 +240,31 @@ private extension ErrorReport {
     func presentationGroup(
         role: StructuredContent.Role,
         title: String,
-        value: String
+        value: String,
+        quoted: Bool = false
     ) -> StructuredContent {
-        .group(
+        let paragraph: StructuredContent =
+            .paragraph([
+                .text(
+                    value
+                ),
+            ])
+
+        return .group(
             role: role,
             title: [
                 .text(
                     title
                 ),
             ],
-            content: .paragraph([
-                .text(
-                    value
-                ),
-            ])
+            content:
+                quoted
+                ? .quote(paragraph)
+                : paragraph
         )
     }
 
-    func diagnosticContent(
-        options: ErrorStructuredContentOptions
-    ) -> StructuredContent {
+    func diagnosticContent() -> StructuredContent {
         var diagnostics: [StructuredContent] = [
             diagnosticLine(
                 name: "type",
@@ -298,11 +316,7 @@ private extension ErrorReport {
                 diagnostic.fields.map {
                     diagnosticLine(
                         name: $0.key.rawValue,
-                        value:
-                            diagnosticValue(
-                                for: $0,
-                                options: options
-                            )
+                        value: $0.value.presentation
                     )
                 }
         )
@@ -355,7 +369,7 @@ private extension ErrorReport {
                 ),
             ],
             content:
-                relation.report.structuredContent(
+                relation.report.rendered(
                     options: options
                 )
         )
@@ -381,17 +395,12 @@ private extension ErrorReport {
     }
 
     func contextContent(
-        _ context: ErrorContext,
-        options: ErrorStructuredContentOptions
+        _ context: ErrorContext
     ) -> StructuredContent {
         var content: [StructuredContent] = [
             .paragraph([
                 .text(
-                    options.redaction.allows(
-                        context.messageSensitivity
-                    )
-                    ? context.message
-                    : "<redacted>"
+                    context.message
                 ),
             ]),
         ]
@@ -401,11 +410,7 @@ private extension ErrorReport {
                 context.fields.map {
                     diagnosticLine(
                         name: $0.key.rawValue,
-                        value:
-                            diagnosticValue(
-                                for: $0,
-                                options: options
-                            )
+                        value: $0.value.presentation
                     )
                 }
         )
@@ -435,21 +440,6 @@ private extension ErrorReport {
         return .paragraph(
             content
         )
-    }
-
-    func diagnosticValue(
-        for field: ErrorDiagnosticField,
-        options: ErrorStructuredContentOptions
-    ) -> String {
-        guard
-            options.redaction.allows(
-                field.sensitivity
-            )
-        else {
-            return "<redacted>"
-        }
-
-        return field.value.presentation
     }
 }
 
@@ -490,15 +480,15 @@ private extension ErrorRelation.Kind {
             return "Context"
         }
 
-        if self == .recoveryattempt {
+        if self == .recovery_attempt {
             return "Recovery attempt"
         }
 
-        if self == .remotecause {
+        if self == .remote_cause {
             return "Remote cause"
         }
 
-        if self == .toolfailure {
+        if self == .tool_failure {
             return "Tool failure"
         }
 
@@ -550,7 +540,7 @@ private extension ErrorDiagnosticValue {
                 + "}"
 
         case .redacted:
-            return "<redacted>"
+            return ErrorRedactionPolicy.placeholder
 
         case .null:
             return "null"

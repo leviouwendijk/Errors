@@ -1,11 +1,12 @@
 import Foundation
 
-public typealias MultiError = Errors
-
+/// Several independent failures thrown as one. Each failure is an
+/// `aggregate` relation, so a report carries every one with its own
+/// presentation and sensitivity; the message only counts them, so no
+/// failure's text escapes its own redaction.
 public struct Errors:
-    Error,
-    Sendable,
-    ErrorRelationsProviding
+    SemanticError,
+    Sendable
 {
     public let errors: [any Error]
 
@@ -16,24 +17,35 @@ public struct Errors:
             errors
     }
 
+    public var errorIdentity: ErrorIdentity {
+        .init(
+            namespace: "errors",
+            code: "aggregate"
+        )
+    }
+
+    public var errorPresentation: ErrorPresentation {
+        switch errors.count {
+        case 0:
+            return .init(
+                message: "No errors."
+            )
+
+        case 1:
+            return .init(
+                message: "1 error occurred."
+            )
+
+        default:
+            return .init(
+                message: "\(errors.count) errors occurred."
+            )
+        }
+    }
+
     public var errorRelations: [ErrorRelation] {
         errors.map(
             ErrorRelation.aggregate
         )
-    }
-}
-
-extension Errors: LocalizedError {
-    public var errorDescription: String? {
-        switch errors.count {
-        case 0:
-            return "No errors."
-
-        case 1:
-            return "1 error occurred."
-
-        default:
-            return "\(errors.count) errors occurred."
-        }
     }
 }

@@ -1,33 +1,9 @@
 import Errors
 import Foundation
-import TestFlows
+import Testing
 
-private struct SemanticContractFixtureError:
-    SemanticError
-{
-    let errorPresentation = ErrorPresentation(
-        title: "Semantic fixture",
-        message: "The semantic fixture failed.",
-        reason: "The fixture requested a structured report.",
-        recoverySuggestion: "Inspect the captured report."
-    )
-
-    let errorIdentity = ErrorIdentity(
-        namespace: "errors.fixture",
-        code: "semantic_contract"
-    )
-}
-
-let errorsInvariantFlows: [TestFlow] = [
-    TestFlow(
-        "error-capture-policy-invariants",
-        tags: [
-            "errors",
-            "capture-policy",
-            "invariants",
-            "codable",
-        ]
-    ) {
+enum InvariantTests {
+    static func capturePolicyInvariants() throws {
         let zeroBounded = try ErrorCapturePolicy(
             maximumDepth: 0,
             maximumRelationsPerError: 0,
@@ -50,38 +26,20 @@ let errorsInvariantFlows: [TestFlow] = [
             1,
             "capture policy preserves the minimum legal total report count"
         )
-
-        var rejectedNegativeDepth = false
-
-        do {
+        try Expect.throwsError(
+            "negative capture limits are rejected rather than silently clamped"
+        ) {
             _ = try ErrorCapturePolicy(
                 maximumDepth: -1
             )
-        } catch {
-            rejectedNegativeDepth = true
         }
-
-        try Expect.equal(
-            rejectedNegativeDepth,
-            true,
-            "negative capture limits are rejected rather than silently clamped"
-        )
-
-        var rejectedZeroReports = false
-
-        do {
+        try Expect.throwsError(
+            "maximumTotalReports below one is rejected because capture always contains a root report"
+        ) {
             _ = try ErrorCapturePolicy(
                 maximumTotalReports: 0
             )
-        } catch {
-            rejectedZeroReports = true
         }
-
-        try Expect.equal(
-            rejectedZeroReports,
-            true,
-            "maximumTotalReports below one is rejected because capture always contains a root report"
-        )
 
         let configured = try ErrorCapturePolicy(
             maximumDepth: 3,
@@ -122,51 +80,18 @@ let errorsInvariantFlows: [TestFlow] = [
             }
             """.utf8
         )
-        var decoderRejectedMalformedPolicy = false
 
-        do {
+        try Expect.throwsError(
+            "Codable decoding delegates to invariant-preserving construction"
+        ) {
             _ = try JSONDecoder().decode(
                 ErrorCapturePolicy.self,
                 from: malformed
             )
-        } catch {
-            decoderRejectedMalformedPolicy = true
         }
+    }
 
-        try Expect.equal(
-            decoderRejectedMalformedPolicy,
-            true,
-            "Codable decoding delegates to invariant-preserving construction"
-        )
-
-        return [
-            .field(
-                "zero_depth",
-                String(zeroBounded.maximumDepth)
-            ),
-            .field(
-                "minimum_reports",
-                String(zeroBounded.maximumTotalReports)
-            ),
-            .field(
-                "negative_rejected",
-                String(rejectedNegativeDepth)
-            ),
-            .field(
-                "decoder_rejected_invalid",
-                String(decoderRejectedMalformedPolicy)
-            ),
-        ]
-    },
-    TestFlow(
-        "semantic-error-contract",
-        tags: [
-            "errors",
-            "semantic-error",
-            "report",
-            "identity",
-        ]
-    ) {
+    static func semanticErrorContract() throws {
         let error = SemanticContractFixtureError()
         let report = error.report
 
@@ -180,19 +105,21 @@ let errorsInvariantFlows: [TestFlow] = [
             error.errorIdentity,
             "SemanticError identity participates in normal ErrorReport capture"
         )
-        try Expect.equal(
+        try Expect.true(
             report.diagnostic.fields.isEmpty,
-            true,
             "SemanticError defaults diagnostic fields to empty"
         )
-        try Expect.equal(
+        try Expect.true(
             report.relations.isEmpty,
-            true,
             "SemanticError defaults related errors to empty"
+        )
+        try Expect.isNil(
+            report.diagnostic.domain,
+            "a semantic error is identified by identity, not a bridged domain"
         )
 
         let relation: ErrorRelation.Kind =
-            .recoveryattempt
+            .recovery_attempt
         let restoredRelation = try JSONDecoder().decode(
             ErrorRelation.Kind.self,
             from: JSONEncoder().encode(
@@ -203,24 +130,23 @@ let errorsInvariantFlows: [TestFlow] = [
         try Expect.equal(
             restoredRelation,
             relation,
-            "ErrorRelation.Kind keeps its established single-string Codable representation through StringIdentifier"
+            "ErrorRelation.Kind keeps its single-string Codable representation"
         )
+    }
+}
 
-        return [
-            .field(
-                "identity_namespace",
-                report.diagnostic.identity?.namespace
-                    ?? "none"
-            ),
-            .field(
-                "identity_code",
-                report.diagnostic.identity?.code
-                    ?? "none"
-            ),
-            .field(
-                "relation_kind",
-                restoredRelation.rawValue
-            ),
-        ]
-    },
-]
+private struct SemanticContractFixtureError:
+    SemanticError
+{
+    let errorPresentation = ErrorPresentation(
+        title: "Semantic fixture",
+        message: "The semantic fixture failed.",
+        reason: "The fixture requested a structured report.",
+        recoverySuggestion: "Inspect the captured report."
+    )
+
+    let errorIdentity = ErrorIdentity(
+        namespace: "errors.fixture",
+        code: "semantic_contract"
+    )
+}

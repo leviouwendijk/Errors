@@ -9,9 +9,8 @@ public extension ErrorDiagnosticValue {
     func jsonvalue(
         using coding: JSONCoding = .default
     ) throws -> JSONValue {
-        try JSONValueCodec.encodeValue(
-            self,
-            using: coding.encoder()
+        try coding.value(
+            self
         )
     }
 
@@ -20,9 +19,9 @@ public extension ErrorDiagnosticValue {
         jsonvalue: JSONValue,
         using coding: JSONCoding = .default
     ) throws {
-        self = try jsonvalue.as(
+        self = try jsonvalue.decode(
             Self.self,
-            using: coding.decoder()
+            using: coding
         )
     }
 }
@@ -33,9 +32,8 @@ public extension ErrorReport {
     func jsonvalue(
         using coding: JSONCoding = .default
     ) throws -> JSONValue {
-        try JSONValueCodec.encodeValue(
-            self,
-            using: coding.encoder()
+        try coding.value(
+            self
         )
     }
 
@@ -45,9 +43,9 @@ public extension ErrorReport {
         jsonvalue: JSONValue,
         using coding: JSONCoding = .default
     ) throws {
-        self = try jsonvalue.as(
+        self = try jsonvalue.decode(
             Self.self,
-            using: coding.decoder()
+            using: coding
         )
     }
 }

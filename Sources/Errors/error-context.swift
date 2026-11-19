@@ -7,12 +7,12 @@ public struct ErrorContext:
 {
     public let message: String
     public let fields: [ErrorDiagnosticField]
-    public let messageSensitivity: ErrorDiagnosticField.Sensitivity
+    public let messageSensitivity: ErrorSensitivity
 
     public init(
         message: String,
         fields: [ErrorDiagnosticField] = [],
-        messageSensitivity: ErrorDiagnosticField.Sensitivity = .ordinary
+        messageSensitivity: ErrorSensitivity = .ordinary
     ) {
         self.message = message
         self.fields = fields

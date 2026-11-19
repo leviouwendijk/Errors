@@ -62,6 +62,15 @@ enum ErrorReportCapture {
         let nsError =
             error as NSError
 
+        // Swift errors bridge to a box whose domain is the type name and
+        // whose code is the case's position: noise that shifts when cases
+        // are reordered. Only Foundation errors carry a real domain, code
+        // and userInfo.
+        let foundationError: NSError? =
+            isFoundationError(error)
+            ? nsError
+            : nil
+
         let objectIdentity =
             ObjectIdentifier(
                 nsError
@@ -92,7 +101,7 @@ enum ErrorReportCapture {
         let fieldCapture =
             fields(
                 for: error,
-                nsError: nsError,
+                foundationError: foundationError,
                 policy: policy,
                 state: state
             )
@@ -111,8 +120,8 @@ enum ErrorReportCapture {
                 identity:
                     (error as? any ErrorIdentityProviding)?
                         .errorIdentity,
-                domain: nsError.domain,
-                code: nsError.code,
+                domain: foundationError?.domain,
+                code: foundationError?.code,
                 fields: fieldCapture.fields
             )
 
@@ -133,7 +142,7 @@ enum ErrorReportCapture {
             depth < policy.maximumDepth
         else {
             record(
-                .maximumdepth,
+                .maximum_depth,
                 limit: policy.maximumDepth,
                 in: &truncations
             )
@@ -148,7 +157,7 @@ enum ErrorReportCapture {
         let relationCapture =
             relations(
                 for: error,
-                nsError: nsError,
+                foundationError: foundationError,
                 policy: policy
             )
 
@@ -163,7 +172,7 @@ enum ErrorReportCapture {
                 state.reportCount < policy.maximumTotalReports
             else {
                 record(
-                    .maximumtotalreports,
+                    .maximum_total_reports,
                     limit: policy.maximumTotalReports,
                     in: &truncations
                 )
@@ -214,7 +223,7 @@ enum ErrorReportCapture {
                 return presentation
             }
 
-            return ErrorPresentation(
+            return presentation.replacingText(
                 title: presentation.title,
                 message: presentation.message,
                 reason: presentation.reason,
@@ -262,7 +271,7 @@ enum ErrorReportCapture {
 
     private static func fields(
         for error: any Error,
-        nsError: NSError,
+        foundationError: NSError?,
         policy: ErrorCapturePolicy,
         state: ErrorCaptureState
     ) -> (
@@ -311,6 +320,7 @@ enum ErrorReportCapture {
         }
 
         guard
+            let foundationError,
             fields.count < policy.maximumFieldsPerError,
             state.fieldCount < policy.maximumTotalFields,
             policy.userInfo != .none
@@ -322,7 +332,7 @@ enum ErrorReportCapture {
         }
 
         let userInfo =
-            nsError.userInfo
+            foundationError.userInfo
                 .sorted {
                     String(
                         describing: $0.key
@@ -411,7 +421,7 @@ enum ErrorReportCapture {
         if let urlError = error as? URLError {
             fields.append(
                 .init(
-                    key: "urlerror.code",
+                    key: "url_error.code",
                     value: urlError.code.rawValue
                 )
             )
@@ -419,9 +429,9 @@ enum ErrorReportCapture {
             if let url = urlError.failingURL {
                 fields.append(
                     .init(
-                        key: "urlerror.url",
+                        key: "url_error.url",
                         value: url.absoluteString,
-                        sensitivity: .potentiallySensitive
+                        sensitivity: .potentially_sensitive
                     )
                 )
             }
@@ -455,7 +465,7 @@ enum ErrorReportCapture {
             ):
                 fields.append(
                     contentsOf: decodingFields(
-                        kind: "typemismatch",
+                        kind: "type_mismatch",
                         context: context,
                         expectedType: type
                     )
@@ -467,7 +477,7 @@ enum ErrorReportCapture {
             ):
                 fields.append(
                     contentsOf: decodingFields(
-                        kind: "valuenotfound",
+                        kind: "value_not_found",
                         context: context,
                         expectedType: type
                     )
@@ -479,7 +489,7 @@ enum ErrorReportCapture {
             ):
                 fields.append(
                     contentsOf: decodingFields(
-                        kind: "keynotfound",
+                        kind: "key_not_found",
                         context: context,
                         key: key.stringValue
                     )
@@ -490,7 +500,7 @@ enum ErrorReportCapture {
             ):
                 fields.append(
                     contentsOf: decodingFields(
-                        kind: "datacorrupted",
+                        kind: "data_corrupted",
                         context: context
                     )
                 )
@@ -520,7 +530,7 @@ enum ErrorReportCapture {
                 value: kind
             ),
             .init(
-                key: "decoding.codingpath",
+                key: "decoding.coding_path",
                 value: .array(
                     context.codingPath.map {
                         .string(
@@ -530,7 +540,7 @@ enum ErrorReportCapture {
                 )
             ),
             .init(
-                key: "decoding.debugdescription",
+                key: "decoding.debug_description",
                 value: context.debugDescription
             ),
         ]
@@ -538,7 +548,7 @@ enum ErrorReportCapture {
         if let expectedType {
             fields.append(
                 .init(
-                    key: "decoding.expectedtype",
+                    key: "decoding.expected_type",
                     value: String(
                         reflecting: expectedType
                     )
@@ -560,7 +570,7 @@ enum ErrorReportCapture {
 
     private static func relations(
         for error: any Error,
-        nsError: NSError,
+        foundationError: NSError?,
         policy: ErrorCapturePolicy
     ) -> (
         relations: [ErrorRelation],
@@ -587,7 +597,7 @@ enum ErrorReportCapture {
                     > policy.maximumRelationsPerError
             {
                 record(
-                    .maximumrelations,
+                    .maximum_relations,
                     limit: policy.maximumRelationsPerError,
                     in: &truncations
                 )
@@ -602,7 +612,7 @@ enum ErrorReportCapture {
         if
             !alreadyHasUnderlying,
             let underlying =
-                nsError.userInfo[NSUnderlyingErrorKey]
+                foundationError?.userInfo[NSUnderlyingErrorKey]
                     as? any Error
         {
             if
@@ -615,7 +625,7 @@ enum ErrorReportCapture {
                 )
             } else {
                 record(
-                    .maximumrelations,
+                    .maximum_relations,
                     limit: policy.maximumRelationsPerError,
                     in: &truncations
                 )
@@ -623,7 +633,7 @@ enum ErrorReportCapture {
         }
 
         if let multiple =
-            nsError.userInfo["NSMultipleUnderlyingErrorsKey"]
+            foundationError?.userInfo["NSMultipleUnderlyingErrorsKey"]
                 as? [Any]
         {
             for candidate in multiple {
@@ -637,7 +647,7 @@ enum ErrorReportCapture {
                     relations.count < policy.maximumRelationsPerError
                 else {
                     record(
-                        .maximumrelations,
+                        .maximum_relations,
                         limit: policy.maximumRelationsPerError,
                         in: &truncations
                     )
@@ -668,7 +678,7 @@ enum ErrorReportCapture {
             depth < policy.maximumDiagnosticValueDepth
         else {
             record(
-                .maximumdiagnosticvaluedepth,
+                .maximum_diagnostic_value_depth,
                 limit: policy.maximumDiagnosticValueDepth,
                 in: &truncations
             )
@@ -785,7 +795,7 @@ enum ErrorReportCapture {
         case let values as [Any]:
             if values.count > policy.maximumCollectionCount {
                 record(
-                    .maximumcollectioncount,
+                    .maximum_collection_count,
                     limit: policy.maximumCollectionCount,
                     in: &truncations
                 )
@@ -813,7 +823,7 @@ enum ErrorReportCapture {
 
             if keys.count > policy.maximumCollectionCount {
                 record(
-                    .maximumcollectioncount,
+                    .maximum_collection_count,
                     limit: policy.maximumCollectionCount,
                     in: &truncations
                 )
@@ -864,7 +874,7 @@ enum ErrorReportCapture {
 
         if presentation.recoveryOptions.count > policy.maximumCollectionCount {
             record(
-                .maximumcollectioncount,
+                .maximum_collection_count,
                 limit: policy.maximumCollectionCount,
                 in: &truncations
             )
@@ -882,7 +892,7 @@ enum ErrorReportCapture {
             )
         }
 
-        return ErrorPresentation(
+        return presentation.replacingText(
             title: boundedOptionalString(
                 presentation.title,
                 policy: policy,
@@ -926,7 +936,7 @@ enum ErrorReportCapture {
 
         guard fields.count < policy.maximumFieldsPerError else {
             record(
-                .maximumfields,
+                .maximum_fields,
                 limit: policy.maximumFieldsPerError,
                 in: &truncations
             )
@@ -935,7 +945,7 @@ enum ErrorReportCapture {
 
         guard state.fieldCount < policy.maximumTotalFields else {
             record(
-                .maximumtotalfields,
+                .maximum_total_fields,
                 limit: policy.maximumTotalFields,
                 in: &truncations
             )
@@ -973,7 +983,7 @@ enum ErrorReportCapture {
     ) -> ErrorDiagnosticValue {
         guard depth < policy.maximumDiagnosticValueDepth else {
             record(
-                .maximumdiagnosticvaluedepth,
+                .maximum_diagnostic_value_depth,
                 limit: policy.maximumDiagnosticValueDepth,
                 in: &truncations
             )
@@ -993,7 +1003,7 @@ enum ErrorReportCapture {
         case .array(let values):
             if values.count > policy.maximumCollectionCount {
                 record(
-                    .maximumcollectioncount,
+                    .maximum_collection_count,
                     limit: policy.maximumCollectionCount,
                     in: &truncations
                 )
@@ -1021,7 +1031,7 @@ enum ErrorReportCapture {
 
             if keys.count > policy.maximumCollectionCount {
                 record(
-                    .maximumcollectioncount,
+                    .maximum_collection_count,
                     limit: policy.maximumCollectionCount,
                     in: &truncations
                 )
@@ -1082,7 +1092,7 @@ enum ErrorReportCapture {
         }
 
         record(
-            .maximumstringlength,
+            .maximum_string_length,
             limit: policy.maximumStringLength,
             in: &truncations
         )
@@ -1112,9 +1122,16 @@ enum ErrorReportCapture {
         truncations.append(truncation)
     }
 
+    private static func isFoundationError(
+        _ error: any Error
+    ) -> Bool {
+        type(of: error) is NSError.Type
+            || error is any CustomNSError
+    }
+
     private static func sensitivity(
         for name: String
-    ) -> ErrorDiagnosticField.Sensitivity {
+    ) -> ErrorSensitivity {
         let normalized =
             name.lowercased()
 
@@ -1153,7 +1170,7 @@ enum ErrorReportCapture {
         if sensitiveFragments.contains(
             where: normalized.contains
         ) {
-            return .potentiallySensitive
+            return .potentially_sensitive
         }
 
         return .ordinary

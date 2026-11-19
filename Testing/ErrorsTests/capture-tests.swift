@@ -2,10 +2,10 @@ import DSL
 import Errors
 import ErrorsDSL
 import Foundation
-import TestFlows
+import Testing
 
-enum ErrorsFlowTesting {
-    static func runSemanticCapture() async throws -> [TestFlowDiagnostic] {
+enum CaptureTests {
+    static func semanticCapture() throws {
         let cause = NSError(
             domain: "fixture.underlying",
             code: 7,
@@ -45,21 +45,9 @@ enum ErrorsFlowTesting {
             "Underlying fixture failure",
             "semantic capture underlying message"
         )
-
-        return [
-            .field(
-                "domain",
-                report.underlying?.diagnostic.domain
-                ?? "<none>"
-            ),
-            .field(
-                "relations",
-                String(report.relations.count)
-            ),
-        ]
     }
 
-    static func runFoundationChain() async throws -> [TestFlowDiagnostic] {
+    static func foundationChain() throws {
         let security = NSError(
             domain: "NSOSStatusErrorDomain",
             code: -9807,
@@ -141,20 +129,46 @@ enum ErrorsFlowTesting {
             ),
             "foundation chain failing URL"
         )
-
-        return [
-            .field(
-                "root",
-                "\(report.diagnostic.domain ?? "<none>") \(report.diagnostic.code ?? 0)"
-            ),
-            .field(
-                "deepest",
-                "\(report.underlying?.underlying?.diagnostic.domain ?? "<none>") \(report.underlying?.underlying?.diagnostic.code ?? 0)"
-            ),
-        ]
     }
 
-    static func runAggregateDSL() async throws -> [TestFlowDiagnostic] {
+    static func swiftErrorsHaveNoFoundationDomain() throws {
+        let plain =
+            PlainFixtureError.second.report
+
+        try Expect.isNil(
+            plain.diagnostic.domain,
+            "a Swift enum has no Foundation domain"
+        )
+        try Expect.isNil(
+            plain.diagnostic.code,
+            "a Swift enum's case position is not recorded as a code"
+        )
+        try Expect.true(
+            plain.diagnostic.fields.isEmpty,
+            "a Swift error's bridged userInfo is not captured: \(plain.diagnostic.fields.map(\.name))"
+        )
+        try Expect.equal(
+            plain.presentation.message,
+            "The second fixture failed.",
+            "LocalizedError text is still the message"
+        )
+
+        let custom =
+            CustomDomainFixtureError().report
+
+        try Expect.equal(
+            custom.diagnostic.domain,
+            "fixture.custom",
+            "CustomNSError keeps its declared domain"
+        )
+        try Expect.equal(
+            custom.diagnostic.code,
+            12,
+            "CustomNSError keeps its declared code"
+        )
+    }
+
+    static func aggregateIsSemantic() throws {
         let aggregate = Errors([
             NSError(
                 domain: "fixture.first",
@@ -182,6 +196,19 @@ enum ErrorsFlowTesting {
             2,
             "aggregate capture count"
         )
+        try Expect.equal(
+            report.diagnostic.identity,
+            ErrorIdentity(
+                namespace: "errors",
+                code: "aggregate"
+            ),
+            "the aggregate has an identity"
+        )
+        try Expect.equal(
+            aggregate.localizedDescription,
+            "2 errors occurred.",
+            "the aggregate's message counts its failures"
+        )
 
         let content =
             report.structuredContent(
@@ -189,33 +216,22 @@ enum ErrorsFlowTesting {
             )
 
         try Expect.true(
-            contains(
+            StructuredContentProbe.contains(
                 role: "error.diagnostics",
                 in: content
             ),
             "DSL projection diagnostics role"
         )
         try Expect.true(
-            contains(
+            StructuredContentProbe.contains(
                 role: "error.aggregate",
                 in: content
             ),
             "DSL projection aggregate role"
         )
-
-        return [
-            .field(
-                "aggregates",
-                String(report.aggregates.count)
-            ),
-            .field(
-                "projection",
-                "structured-content"
-            ),
-        ]
     }
 
-    static func runSemanticUtilities() async throws -> [TestFlowDiagnostic] {
+    static func semanticUtilities() throws {
         let underlying = NSError(
             domain: "fixture.deep",
             code: 42,
@@ -236,12 +252,11 @@ enum ErrorsFlowTesting {
             "The fixture request could not complete.",
             "presentation provider bridges LocalizedError"
         )
-
         try Expect.equal(
             report.diagnostic.identity,
             ErrorIdentity(
                 namespace: "fixture.request",
-                code: "transportfailed"
+                code: "transport_failed"
             ),
             "semantic identity captured"
         )
@@ -250,7 +265,7 @@ enum ErrorsFlowTesting {
             .adding.field(
                 .host,
                 value: "malinois.lan",
-                sensitivity: .potentiallySensitive
+                sensitivity: .potentially_sensitive
             )
             .adding.context(
                 "Loading model response"
@@ -271,7 +286,6 @@ enum ErrorsFlowTesting {
             .string("malinois.lan"),
             "adding.field typed key"
         )
-
         try Expect.equal(
             enriched.contexts.map {
                 $0.message
@@ -284,7 +298,7 @@ enum ErrorsFlowTesting {
         )
 
         let publicReport = enriched.redacted(
-            policy: .publicsafe
+            policy: .public_safe
         )
 
         try Expect.equal(
@@ -296,7 +310,7 @@ enum ErrorsFlowTesting {
         )
 
         let internalReport = enriched.redacted(
-            policy: .internaldiagnostic
+            policy: .internal_diagnostic
         )
 
         try Expect.equal(
@@ -306,7 +320,6 @@ enum ErrorsFlowTesting {
             .string("malinois.lan"),
             "internal diagnostics retain potentially sensitive field"
         )
-
         try Expect.equal(
             internalReport.diagnostic[
                 field: "authorization"
@@ -314,19 +327,17 @@ enum ErrorsFlowTesting {
             .redacted,
             "internal diagnostics redact secret field"
         )
-
         try Expect.true(
             report.contains(
                 identity: ErrorIdentity(
                     namespace: "fixture.request",
-                    code: "transportfailed"
+                    code: "transport_failed"
                 )
             ),
             "report traversal finds semantic identity"
         )
-
         try Expect.equal(
-            report.deepestunderlying.diagnostic.domain,
+            report.deepest_underlying.diagnostic.domain,
             "fixture.deep",
             "deepest underlying traversal"
         )
@@ -339,56 +350,48 @@ enum ErrorsFlowTesting {
             "rollback",
             "relation kinds are extensible"
         )
-
-        try Expect.equal(
-            ErrorRelation.Kind.recoveryattempt.rawValue,
-            "recoveryattempt",
-            "recoveryattempt is flatcase"
-        )
-
-        try Expect.equal(
-            ErrorRelation.Kind.remotecause.rawValue,
-            "remotecause",
-            "remotecause is flatcase"
-        )
-
-        try Expect.equal(
-            ErrorRelation.Kind.toolfailure.rawValue,
-            "toolfailure",
-            "toolfailure is flatcase"
-        )
-
-        return [
-            .field(
-                "identity",
-                "\(report.diagnostic.identity?.namespace ?? "<none>").\(report.diagnostic.identity?.code ?? "<none>")"
-            ),
-            .field(
-                "context-count",
-                "2"
-            ),
-            .field(
-                "deepest-domain",
-                report.deepestunderlying.diagnostic.domain
-                ?? "<none>"
-            ),
-        ]
     }
 }
 
-private struct SemanticFixtureError:
+private enum PlainFixtureError:
     Error,
-    PresentableError,
-    ErrorIdentityProviding,
-    ErrorDiagnosticFieldsProviding,
-    ErrorRelationsProviding
+    LocalizedError
+{
+    case first
+    case second
+
+    var errorDescription: String? {
+        switch self {
+        case .first:
+            return "The first fixture failed."
+
+        case .second:
+            return "The second fixture failed."
+        }
+    }
+}
+
+private struct CustomDomainFixtureError:
+    CustomNSError
+{
+    static var errorDomain: String {
+        "fixture.custom"
+    }
+
+    var errorCode: Int {
+        12
+    }
+}
+
+struct SemanticFixtureError:
+    SemanticError
 {
     let underlying: any Error
 
     var errorIdentity: ErrorIdentity {
         .init(
             namespace: "fixture.request",
-            code: "transportfailed"
+            code: "transport_failed"
         )
     }
 
@@ -409,7 +412,7 @@ private struct SemanticFixtureError:
             .init(
                 key: .endpoint,
                 value: "/fixture",
-                sensitivity: .potentiallySensitive
+                sensitivity: .potentially_sensitive
             ),
             .init(
                 key: .attempt,
@@ -427,46 +430,61 @@ private struct SemanticFixtureError:
     }
 }
 
-private func contains(
-    role rawValue: String,
-    in content: StructuredContent
-) -> Bool {
-    switch content {
-    case .collection(let content):
-        return content.contains {
-            contains(
-                role: rawValue,
-                in: $0
-            )
+enum StructuredContentProbe {
+    static func contains(
+        role rawValue: String,
+        in content: StructuredContent
+    ) -> Bool {
+        first(in: content) {
+            if case .group(let role, _, _) = $0 {
+                return role?.rawValue == rawValue
+            }
+            return false
+        } != nil
+    }
+
+    static func first(
+        in content: StructuredContent,
+        where predicate: (StructuredContent) -> Bool
+    ) -> StructuredContent? {
+        if predicate(content) {
+            return content
         }
 
-    case .quote(let content):
-        return contains(
-            role: rawValue,
-            in: content
-        )
+        switch content {
+        case .collection(let content):
+            for child in content {
+                if let match = first(in: child, where: predicate) {
+                    return match
+                }
+            }
+            return nil
 
-    case .list(_, let items):
-        return items.contains {
-            contains(
-                role: rawValue,
-                in: $0
-            )
+        case .quote(let content):
+            return first(in: content, where: predicate)
+
+        case .list(_, let items):
+            for item in items {
+                if let match = first(in: item, where: predicate) {
+                    return match
+                }
+            }
+            return nil
+
+        case .group(_, _, let content):
+            return first(in: content, where: predicate)
+
+        case .table(let header, let rows):
+            for cell in header + rows.flatMap({ $0 }) {
+                if let match = first(in: cell, where: predicate) {
+                    return match
+                }
+            }
+            return nil
+
+        case .paragraph,
+             .code:
+            return nil
         }
-
-    case .group(
-        let role,
-        _,
-        let content
-    ):
-        return role?.rawValue == rawValue
-            || contains(
-                role: rawValue,
-                in: content
-            )
-
-    case .paragraph,
-         .code:
-        return false
     }
 }

@@ -20,7 +20,7 @@ public struct ErrorReportAdding {
     public func field(
         _ key: ErrorDiagnosticKey,
         value: ErrorDiagnosticValue,
-        sensitivity: ErrorDiagnosticField.Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) -> ErrorReport {
         var fields =
             report.diagnostic.fields
@@ -51,7 +51,7 @@ public struct ErrorReportAdding {
     public func field(
         _ key: ErrorDiagnosticKey,
         value: String,
-        sensitivity: ErrorDiagnosticField.Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) -> ErrorReport {
         field(
             key,
@@ -63,7 +63,7 @@ public struct ErrorReportAdding {
     public func field(
         _ key: ErrorDiagnosticKey,
         value: Int,
-        sensitivity: ErrorDiagnosticField.Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) -> ErrorReport {
         field(
             key,
@@ -75,7 +75,7 @@ public struct ErrorReportAdding {
     public func field(
         _ key: ErrorDiagnosticKey,
         value: Double,
-        sensitivity: ErrorDiagnosticField.Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) -> ErrorReport {
         field(
             key,
@@ -87,7 +87,7 @@ public struct ErrorReportAdding {
     public func field(
         _ key: ErrorDiagnosticKey,
         value: Bool,
-        sensitivity: ErrorDiagnosticField.Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) -> ErrorReport {
         field(
             key,
@@ -99,7 +99,7 @@ public struct ErrorReportAdding {
     public func context(
         _ message: String,
         fields: [ErrorDiagnosticField] = [],
-        sensitivity: ErrorDiagnosticField.Sensitivity = .ordinary
+        sensitivity: ErrorSensitivity = .ordinary
     ) -> ErrorReport {
         context(
             ErrorContext(
