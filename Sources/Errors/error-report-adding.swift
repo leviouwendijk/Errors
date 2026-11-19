@@ -131,12 +131,8 @@ private extension ErrorReportAdding {
     ) -> ErrorReport {
         ErrorReport(
             presentation: report.presentation,
-            diagnostic: ErrorDiagnostic(
-                typeName: report.diagnostic.typeName,
-                identity: report.diagnostic.identity,
-                domain: report.diagnostic.domain,
-                code: report.diagnostic.code,
-                fields: fields
+            diagnostic: report.diagnostic.replacingFields(
+                fields
             ),
             contexts: report.contexts,
             relations: report.relations,

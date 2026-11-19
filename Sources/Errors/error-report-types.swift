@@ -61,8 +61,26 @@ public struct ErrorPresentation:
             reasonOrigin: reasonOrigin
         )
     }
+
+    private enum CodingKeys:
+        String,
+        CodingKey
+    {
+        case title
+        case message
+        case reason
+        case recoverySuggestion = "recovery_suggestion"
+        case recoveryOptions = "recovery_options"
+        case helpAnchor = "help_anchor"
+        case messageSensitivity = "message_sensitivity"
+        case reasonSensitivity = "reason_sensitivity"
+        case reasonOrigin = "reason_origin"
+    }
 }
 
+/// Encodes as plain JSON (`"INBOX"`, `3`, `[…]`, `{…}`, `null`), except
+/// `redacted`, which is the reserved object `{"$redacted": true}`. A whole
+/// `double` is written as a JSON integer and so decodes as `integer`.
 public indirect enum ErrorDiagnosticValue:
     Sendable,
     Codable,
@@ -109,8 +127,10 @@ public struct ErrorDiagnostic:
 {
     public let typeName: String
     public let identity: ErrorIdentity?
+    /// Foundation's domain and code, only for `NSError` and `CustomNSError`.
     public let domain: String?
     public let code: Int?
+    public let disposition: ErrorDisposition?
     public let fields: [ErrorDiagnosticField]
 
     public init(
@@ -118,13 +138,40 @@ public struct ErrorDiagnostic:
         identity: ErrorIdentity? = nil,
         domain: String? = nil,
         code: Int? = nil,
+        disposition: ErrorDisposition? = nil,
         fields: [ErrorDiagnosticField] = []
     ) {
         self.typeName = typeName
         self.identity = identity
         self.domain = domain
         self.code = code
+        self.disposition = disposition
         self.fields = fields
+    }
+
+    public func replacingFields(
+        _ fields: [ErrorDiagnosticField]
+    ) -> ErrorDiagnostic {
+        ErrorDiagnostic(
+            typeName: typeName,
+            identity: identity,
+            domain: domain,
+            code: code,
+            disposition: disposition,
+            fields: fields
+        )
+    }
+
+    private enum CodingKeys:
+        String,
+        CodingKey
+    {
+        case typeName = "type_name"
+        case identity
+        case domain
+        case code
+        case disposition
+        case fields
     }
 
     public subscript(
@@ -315,15 +362,15 @@ public struct ErrorCapturePolicy:
         String,
         CodingKey
     {
-        case maximumDepth
-        case maximumRelationsPerError
-        case maximumFieldsPerError
-        case userInfo
-        case maximumDiagnosticValueDepth
-        case maximumStringLength
-        case maximumCollectionCount
-        case maximumTotalReports
-        case maximumTotalFields
+        case maximumDepth = "maximum_depth"
+        case maximumRelationsPerError = "maximum_relations_per_error"
+        case maximumFieldsPerError = "maximum_fields_per_error"
+        case userInfo = "user_info"
+        case maximumDiagnosticValueDepth = "maximum_diagnostic_value_depth"
+        case maximumStringLength = "maximum_string_length"
+        case maximumCollectionCount = "maximum_collection_count"
+        case maximumTotalReports = "maximum_total_reports"
+        case maximumTotalFields = "maximum_total_fields"
     }
 
     public let maximumDepth: Int
@@ -508,6 +555,20 @@ public struct ErrorCapturePolicy:
         maximumDiagnosticValueDepth: 2,
         maximumStringLength: 1024,
         maximumCollectionCount: 32,
+        maximumTotalReports: 32,
+        maximumTotalFields: 128
+    )
+
+    /// For payloads a model reads: shallow, few fields, only the standard
+    /// Foundation userInfo keys, short strings.
+    public static let model = Self(
+        validatedMaximumDepth: 6,
+        maximumRelationsPerError: 8,
+        maximumFieldsPerError: 16,
+        userInfo: .standard,
+        maximumDiagnosticValueDepth: 3,
+        maximumStringLength: 2048,
+        maximumCollectionCount: 16,
         maximumTotalReports: 32,
         maximumTotalFields: 128
     )

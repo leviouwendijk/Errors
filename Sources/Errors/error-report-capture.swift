@@ -55,6 +55,19 @@ enum ErrorReportCapture {
         activeObjects: Set<ObjectIdentifier>,
         state: ErrorCaptureState
     ) -> ErrorReport {
+        if let contextual = error as? ContextualError {
+            return capture(
+                contextual.underlying,
+                policy: policy,
+                depth: depth,
+                activeObjects: activeObjects,
+                state: state
+            )
+            .adding.context(
+                contextual.context
+            )
+        }
+
         state.reportCount += 1
 
         var truncations: [ErrorCaptureTruncation] = []
@@ -122,6 +135,12 @@ enum ErrorReportCapture {
                         .errorIdentity,
                 domain: foundationError?.domain,
                 code: foundationError?.code,
+                disposition:
+                    (error as? any ErrorDispositionProviding)?
+                        .errorDisposition
+                    ?? ErrorDisposition.inferred(
+                        from: error
+                    ),
                 fields: fieldCapture.fields
             )
 
@@ -600,6 +619,29 @@ enum ErrorReportCapture {
                     .maximum_relations,
                     limit: policy.maximumRelationsPerError,
                     in: &truncations
+                )
+            }
+        }
+
+        // An error that names no relations may still hold its cause
+        // (`case io(any Error)`, `let underlying: any Error`); find it.
+        if relations.isEmpty, foundationError == nil {
+            for relation in discoveredRelations(
+                in: error
+            ) {
+                guard
+                    relations.count < policy.maximumRelationsPerError
+                else {
+                    record(
+                        .maximum_relations,
+                        limit: policy.maximumRelationsPerError,
+                        in: &truncations
+                    )
+                    break
+                }
+
+                relations.append(
+                    relation
                 )
             }
         }
@@ -1120,6 +1162,69 @@ enum ErrorReportCapture {
         }
 
         truncations.append(truncation)
+    }
+
+    /// Errors held by `error`'s stored properties or enum payload, looking
+    /// through tuples (multi-value payloads), optionals and collections (as
+    /// aggregates), but not into other structs or classes.
+    private static func discoveredRelations(
+        in error: any Error
+    ) -> [ErrorRelation] {
+        var relations: [ErrorRelation] = []
+
+        collectErrors(
+            in: error,
+            depth: 0,
+            aggregate: false,
+            into: &relations
+        )
+
+        return relations
+    }
+
+    private static func collectErrors(
+        in value: Any,
+        depth: Int,
+        aggregate: Bool,
+        into relations: inout [ErrorRelation]
+    ) {
+        for child in Mirror(reflecting: value).children {
+            if let error = child.value as? any Error {
+                relations.append(
+                    aggregate
+                    ? .aggregate(error)
+                    : .underlying(error)
+                )
+                continue
+            }
+
+            guard depth < 2 else {
+                continue
+            }
+
+            switch Mirror(reflecting: child.value).displayStyle {
+            case .tuple?,
+                 .optional?:
+                collectErrors(
+                    in: child.value,
+                    depth: depth + 1,
+                    aggregate: aggregate,
+                    into: &relations
+                )
+
+            case .collection?,
+                 .set?:
+                collectErrors(
+                    in: child.value,
+                    depth: depth + 1,
+                    aggregate: true,
+                    into: &relations
+                )
+
+            default:
+                continue
+            }
+        }
     }
 
     private static func isFoundationError(

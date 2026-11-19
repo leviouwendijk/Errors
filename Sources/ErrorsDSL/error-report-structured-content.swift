@@ -10,6 +10,15 @@ public struct ErrorStructuredContentOptions:
     public let includesRelations: Bool
     public let redaction: ErrorRedactionPolicy
 
+    private enum CodingKeys:
+        String,
+        CodingKey
+    {
+        case includesDiagnostics = "includes_diagnostics"
+        case includesRelations = "includes_relations"
+        case redaction
+    }
+
     public init(
         includesDiagnostics: Bool = true,
         includesRelations: Bool = true,
@@ -277,14 +286,19 @@ private extension ErrorReport {
         {
             diagnostics.append(
                 diagnosticLine(
-                    name: "identity.namespace",
-                    value: identity.namespace
+                    name: "identity",
+                    value: identity.raw
                 )
             )
+        }
+
+        if let disposition =
+            diagnostic.disposition
+        {
             diagnostics.append(
                 diagnosticLine(
-                    name: "identity.code",
-                    value: identity.code
+                    name: "disposition",
+                    value: disposition.rawValue
                 )
             )
         }

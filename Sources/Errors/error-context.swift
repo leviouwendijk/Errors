@@ -18,4 +18,13 @@ public struct ErrorContext:
         self.fields = fields
         self.messageSensitivity = messageSensitivity
     }
+
+    private enum CodingKeys:
+        String,
+        CodingKey
+    {
+        case message
+        case fields
+        case messageSensitivity = "message_sensitivity"
+    }
 }

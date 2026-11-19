@@ -8,6 +8,14 @@ public struct ErrorRedactionPolicy:
     public let includesPotentiallySensitive: Bool
     public let includesSecrets: Bool
 
+    private enum CodingKeys:
+        String,
+        CodingKey
+    {
+        case includesPotentiallySensitive = "includes_potentially_sensitive"
+        case includesSecrets = "includes_secrets"
+    }
+
     public init(
         includesPotentiallySensitive: Bool,
         includesSecrets: Bool
@@ -93,18 +101,13 @@ public extension ErrorReport {
                     policy: policy,
                     text: &redactor
                 ),
-            diagnostic: ErrorDiagnostic(
-                typeName: diagnostic.typeName,
-                identity: diagnostic.identity,
-                domain: diagnostic.domain,
-                code: diagnostic.code,
-                fields:
-                    diagnostic.fields.map {
-                        $0.redacted(
-                            policy: policy,
-                            text: &redactor
-                        )
-                    }
+            diagnostic: diagnostic.replacingFields(
+                diagnostic.fields.map {
+                    $0.redacted(
+                        policy: policy,
+                        text: &redactor
+                    )
+                }
             ),
             contexts:
                 contexts.map {

@@ -80,5 +80,49 @@ enum ErrorsTestSuite {
         Test("dsl-renders-redacted-and-quotes-remote", tags: ["redaction", "dsl"]) {
             try RedactionTests.dslRendersRedactedAndQuotesRemote()
         }
+
+        Test("diagnostic-values-are-plain-json", tags: ["coding", "json"]) {
+            try CodingTests.diagnosticValuesArePlainJSON()
+        }
+
+        Test("report-keys-are-snake-case", tags: ["coding", "json"]) {
+            try CodingTests.reportKeysAreSnakeCase()
+        }
+
+        Test("authored-identities-normalize", tags: ["identity", "invariant"]) {
+            try IdentityTests.authoredIdentitiesNormalize()
+        }
+
+        Test("parsed-identities-are-strict", tags: ["identity", "invariant"]) {
+            try IdentityTests.parsedIdentitiesAreStrict()
+        }
+
+        Test("namespaces-match-by-prefix", tags: ["identity"]) {
+            try IdentityTests.namespacesMatchByPrefix()
+        }
+
+        Test("relations-are-discovered", tags: ["capture", "relations"]) {
+            try PropagationTests.relationsAreDiscovered()
+        }
+
+        Test("dispositions", tags: ["capture", "disposition"]) {
+            try PropagationTests.dispositions()
+        }
+
+        Test("context-wraps-transparently", tags: ["capture", "context"]) {
+            try PropagationTests.contextWrapsTransparently()
+        }
+
+        Test("summary-carries-the-structure", tags: ["summary"]) {
+            try SummaryTests.summaryCarriesTheStructure()
+        }
+
+        Test("summary-encodes-compactly", tags: ["summary", "json"]) {
+            try SummaryTests.summaryEncodesCompactly()
+        }
+
+        Test("summary-scrubs-with-a-redactor", tags: ["summary", "redaction"]) {
+            try SummaryTests.summaryScrubsWithARedactor()
+        }
     }
 }

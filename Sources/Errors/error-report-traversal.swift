@@ -40,6 +40,18 @@ public extension ErrorReport {
         } != nil
     }
 
+    /// Whether any report in the tree has an identity within `namespace`
+    /// (`mail` matches `mail.imap.command_failed`).
+    func contains(
+        namespace: String
+    ) -> Bool {
+        first {
+            $0.diagnostic.identity?.isWithin(
+                namespace
+            ) == true
+        } != nil
+    }
+
     func contains(
         domain: String,
         code: Int? = nil
