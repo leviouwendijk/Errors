@@ -80,6 +80,11 @@ enum PropagationTests {
         ])
 
         try Expect.equal(
+            wrapped.report.effectiveDisposition,
+            .requires_configuration,
+            "a report's effective disposition comes from its causes too"
+        )
+        try Expect.equal(
             wrapped.summary().effectiveDisposition,
             .requires_configuration,
             "the effective disposition comes from a cause when the outer error has none"

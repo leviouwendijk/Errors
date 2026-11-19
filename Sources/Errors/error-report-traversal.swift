@@ -8,6 +8,13 @@ public extension ErrorReport {
             }
     }
 
+    /// The first disposition in this report or its relations, outermost
+    /// first: what to do about the failure as a whole.
+    var effectiveDisposition: ErrorDisposition? {
+        diagnostic.disposition
+            ?? relations.lazy.compactMap(\.report.effectiveDisposition).first
+    }
+
     var deepest_underlying: ErrorReport {
         underlying?.deepest_underlying
         ?? self
