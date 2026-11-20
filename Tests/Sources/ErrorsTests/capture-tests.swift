@@ -183,6 +183,47 @@ enum CaptureTests {
         )
     }
 
+    static func decodingErrorsSayWhatAndWhere() throws {
+        struct Key: CodingKey {
+            let stringValue: String
+            let intValue: Int?
+            init(stringValue: String) { self.stringValue = stringValue; intValue = nil }
+            init(intValue: Int) { stringValue = "\(intValue)"; self.intValue = intValue }
+        }
+
+        let mismatch = DecodingError.typeMismatch(
+            String.self,
+            .init(
+                codingPath: [Key(stringValue: "entries"), Key(intValue: 2), Key(stringValue: "tags")],
+                debugDescription: "Expected to decode String but found a number instead."
+            )
+        ).report
+
+        try Expect.equal(
+            mismatch.presentation.message,
+            "Expected String at entries[2].tags.",
+            "a type mismatch names the type and the path"
+        )
+        try Expect.equal(
+            mismatch.presentation.reason,
+            "Expected to decode String but found a number instead.",
+            "the decoder's text is the reason"
+        )
+        try Expect.equal(
+            mismatch.presentation.reasonSensitivity,
+            .potentially_sensitive,
+            "the decoder's text may quote the input"
+        )
+        try Expect.equal(
+            DecodingError.keyNotFound(
+                Key(stringValue: "summary"),
+                .init(codingPath: [], debugDescription: "")
+            ).report.presentation.line,
+            "Missing 'summary'.",
+            "a missing key at the root has no path"
+        )
+    }
+
     static func aggregateIsSemantic() throws {
         let aggregate = Errors([
             NSError(

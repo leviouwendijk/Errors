@@ -41,6 +41,10 @@ enum ErrorsTestSuite {
             try CaptureTests.swiftErrorsHaveNoFoundationDomain()
         }
 
+        Test("decoding-errors-say-what-and-where", tags: ["capture", "foundation"]) {
+            try CaptureTests.decodingErrorsSayWhatAndWhere()
+        }
+
         Test("aggregate-is-semantic", tags: ["capture", "aggregate", "dsl"]) {
             try CaptureTests.aggregateIsSemantic()
         }

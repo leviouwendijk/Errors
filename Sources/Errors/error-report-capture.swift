@@ -253,6 +253,12 @@ enum ErrorReportCapture {
             )
         }
 
+        if let decoding =
+            error as? DecodingError
+        {
+            return decoding.presentation
+        }
+
         if let localized =
             error as? any LocalizedError
         {
