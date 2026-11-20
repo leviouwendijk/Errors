@@ -153,6 +153,21 @@ enum CaptureTests {
             "LocalizedError text is still the message"
         )
 
+        let described = PayloadFixtureError.failed(
+            path: "/tmp/x",
+            underlying: PayloadFixtureError.leaf
+        ).report
+
+        try Expect.true(
+            described.presentation.message.hasPrefix("failed(path: \"/tmp/x\""),
+            "a plain Swift error without text is described by its case: \(described.presentation.message)"
+        )
+        try Expect.equal(
+            described.presentation.messageSensitivity,
+            .potentially_sensitive,
+            "a described case is marked, since its payload may hold anything"
+        )
+
         let custom =
             CustomDomainFixtureError().report
 

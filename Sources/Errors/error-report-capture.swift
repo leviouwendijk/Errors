@@ -274,6 +274,16 @@ enum ErrorReportCapture {
             )
         }
 
+        // A plain Swift error says more by its case (`invalidPath("x")`)
+        // than Foundation's generic sentence; its payload may hold anything.
+        guard isFoundationError(error) else {
+            return ErrorPresentation(
+                message: String(describing: error),
+                recoveryOptions: recoverableOptions,
+                messageSensitivity: .potentially_sensitive
+            )
+        }
+
         return ErrorPresentation(
             message:
                 nsError.localizedDescription,
