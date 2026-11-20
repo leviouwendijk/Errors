@@ -20,12 +20,6 @@ let package = Package(
                 "ErrorsDSL",
             ]
         ),
-        .executable(
-            name: "t_errors",
-            targets: [
-                "ErrorsTests",
-            ]
-        ),
     ],
     dependencies: [
         .package(
@@ -34,10 +28,6 @@ let package = Package(
         ),
         .package(
             url: "https://github.com/leviouwendijk/DSL.git",
-            branch: "master"
-        ),
-        .package(
-            url: "https://github.com/leviouwendijk/Testing.git",
             branch: "master"
         ),
     ],
@@ -60,26 +50,6 @@ let package = Package(
                     package: "DSL"
                 ),
             ]
-        ),
-        .executableTarget(
-            name: "ErrorsTests",
-            dependencies: [
-                "Errors",
-                "ErrorsDSL",
-                .product(
-                    name: "DSL",
-                    package: "DSL"
-                ),
-                .product(
-                    name: "Primitives",
-                    package: "Primitives"
-                ),
-                .product(
-                    name: "Testing",
-                    package: "Testing"
-                ),
-            ],
-            path: "Testing/ErrorsTests"
         ),
     ],
     swiftLanguageModes: [
