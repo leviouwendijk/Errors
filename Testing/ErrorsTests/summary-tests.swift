@@ -52,6 +52,12 @@ enum SummaryTests {
             "a dropped connection under the move makes the whole transient"
         )
 
+        try Expect.equal(
+            MailMoveFixtureError(underlying: URLError(.timedOut)).report.presentation.line,
+            "UID MOVE to Review/noor@example.com failed. NO [NONEXISTENT] Mailbox does not exist. Write the path with /.",
+            "a presentation reads as one line"
+        )
+
         let shallow = error.report.summary(maximumDepth: 0)
 
         try Expect.true(

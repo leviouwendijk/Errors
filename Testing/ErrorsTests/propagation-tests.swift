@@ -104,6 +104,11 @@ enum PropagationTests {
             "The IMAP fixture failed.",
             "the wrapper keeps the underlying message"
         )
+        try Expect.equal(
+            error.explanation,
+            "The IMAP fixture failed. (while moving 12 messages; while applying plan for noor@example.com)",
+            "the explanation is one line with its contexts"
+        )
         try Expect.true(
             error.withoutContext is NamespacedFixtureError,
             "withoutContext reaches the original error"
