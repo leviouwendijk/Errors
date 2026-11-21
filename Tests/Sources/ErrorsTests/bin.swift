@@ -128,5 +128,17 @@ enum ErrorsTestSuite {
         Test("summary-scrubs-with-a-redactor", tags: ["summary", "redaction"]) {
             try SummaryTests.summaryScrubsWithARedactor()
         }
+
+        Test("public-sees-what-it-can-fix", tags: ["disclosure"]) {
+            try DisclosureTests.publicSeesWhatItCanFix()
+        }
+
+        Test("public-does-not-see-internals", tags: ["disclosure", "redaction"]) {
+            try DisclosureTests.publicDoesNotSeeInternals()
+        }
+
+        Test("disclosure-presets-and-coding", tags: ["disclosure", "coding"]) {
+            try DisclosureTests.presetsAndCoding()
+        }
     }
 }
